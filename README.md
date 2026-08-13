@@ -92,3 +92,7 @@ Oficjalny pakiet `ibapi` instalujemy osobno z katalogu `source/pythonclient` pob
 ## Disclaimer
 
 TradingHelper jest narzędziem analitycznym. Scoring, alerty i poziomy ryzyka nie gwarantują wyniku inwestycji i nie zastępują własnej oceny ryzyka.
+
+---
+
+Projekt został stworzony przy wykorzystaniu narzędzi sztucznej inteligencji (SI) wspomagających projektowanie, tworzenie kodu i dokumentacji.
