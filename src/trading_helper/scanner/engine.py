@@ -41,7 +41,24 @@ def analyze(symbol: str, frame: pd.DataFrame) -> ScanResult:
         macd_histogram=float(macd_frame["histogram"].iloc[-1]),
         volume_ratio=float(volume20.iloc[-1]),
     )
-    values = [snapshot.price, snapshot.ema20, snapshot.ema50, snapshot.ema200, snapshot.rsi, snapshot.macd, snapshot.macd_signal, snapshot.macd_histogram, snapshot.volume_ratio, float(atr14.iloc[-1])]
+    values = [
+        snapshot.price,
+        snapshot.ema20,
+        snapshot.ema50,
+        snapshot.ema200,
+        snapshot.rsi,
+        snapshot.macd,
+        snapshot.macd_signal,
+        snapshot.macd_histogram,
+        snapshot.volume_ratio,
+        float(atr14.iloc[-1]),
+    ]
     if any(pd.isna(value) for value in values):
         raise ValueError("Latest indicator snapshot contains missing values")
-    return ScanResult(symbol=symbol.upper(), price=snapshot.price, atr=float(atr14.iloc[-1]), scoring=score_snapshot(snapshot))
+
+    return ScanResult(
+        symbol=symbol.upper(),
+        price=snapshot.price,
+        atr=float(atr14.iloc[-1]),
+        scoring=score_snapshot(snapshot),
+    )

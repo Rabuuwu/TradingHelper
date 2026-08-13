@@ -15,6 +15,7 @@ def self_check() -> int:
     settings = load_settings()
     strategy = load_strategy_config()
     ibapi_installed = importlib.util.find_spec("ibapi") is not None
+
     print(f"TradingHelper {__version__}")
     print(f"Paper trading: {settings.paper_trading}")
     print(f"IBKR read-only expected: {settings.ibkr_read_only}")
@@ -23,7 +24,12 @@ def self_check() -> int:
     print(f"Strategy sections: {', '.join(sorted(strategy.keys()))}")
     print(f"Database: {settings.database_path}")
     print("Automatic order execution: DISABLED")
-    if not settings.paper_trading or not settings.ibkr_read_only:
+
+    if not settings.paper_trading:
+        print("WARNING: IBKR_PAPER_TRADING is false.")
+        return 2
+    if not settings.ibkr_read_only:
+        print("WARNING: IBKR_READ_ONLY is false. V1 requires read-only mode.")
         return 2
     return 0
 
@@ -36,6 +42,7 @@ def main() -> None:
     sub.add_parser("api")
     args = parser.parse_args()
     settings = load_settings()
+
     if args.command == "self-check":
         raise SystemExit(self_check())
     if args.command == "init-db":
@@ -43,7 +50,12 @@ def main() -> None:
         print(f"Database initialized: {Path(settings.database_path)}")
         return
     if args.command == "api":
-        uvicorn.run("trading_helper.api:app", host=settings.app_host, port=settings.app_port, reload=False)
+        uvicorn.run(
+            "trading_helper.api:app",
+            host=settings.app_host,
+            port=settings.app_port,
+            reload=False,
+        )
 
 
 if __name__ == "__main__":

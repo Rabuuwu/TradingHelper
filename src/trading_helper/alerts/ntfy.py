@@ -17,5 +17,10 @@ class NtfyPublisher:
         headers = {"Title": title, "Priority": priority}
         if tags:
             headers["Tags"] = tags
-        response = requests.post(f"{self.server.rstrip('/')}/{self.topic}", data=body.encode("utf-8"), headers=headers, timeout=self.timeout_seconds)
+        response = requests.post(
+            f"{self.server.rstrip('/')}/{self.topic}",
+            data=body.encode("utf-8"),
+            headers=headers,
+            timeout=self.timeout_seconds,
+        )
         response.raise_for_status()

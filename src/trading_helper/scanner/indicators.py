@@ -40,7 +40,14 @@ def macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> 
     slow_line = ema(values, slow)
     macd_line = fast_line - slow_line
     signal_line = ema(macd_line, signal)
-    return pd.DataFrame({"macd": macd_line, "signal": signal_line, "histogram": macd_line - signal_line}, index=series.index)
+    return pd.DataFrame(
+        {
+            "macd": macd_line,
+            "signal": signal_line,
+            "histogram": macd_line - signal_line,
+        },
+        index=series.index,
+    )
 
 
 def atr(frame: pd.DataFrame, period: int = 14) -> pd.Series:
@@ -49,7 +56,9 @@ def atr(frame: pd.DataFrame, period: int = 14) -> pd.Series:
     low = frame["low"].astype(float)
     close = frame["close"].astype(float)
     previous_close = close.shift(1)
-    true_range = pd.concat([(high - low), (high - previous_close).abs(), (low - previous_close).abs()], axis=1).max(axis=1)
+    true_range = pd.concat(
+        [(high - low), (high - previous_close).abs(), (low - previous_close).abs()], axis=1
+    ).max(axis=1)
     return true_range.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
 
 
