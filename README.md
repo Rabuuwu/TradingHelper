@@ -1,78 +1,94 @@
 # TradingHelper
 
-Lokalny asystent do analizy rynku i monitorowania portfela z integracją Interactive Brokers (IBKR).
+Lokalny, lekki asystent do analizy rynku i monitorowania portfela z integracją Interactive Brokers (IBKR).
 
-## Założenia projektu
+> **Status:** fundament projektu / Paper Trading first. TradingHelper nie wykonuje automatycznie transakcji. Decyzja i złożenie zlecenia pozostają po stronie użytkownika.
 
-TradingHelper ma działać lokalnie na Linuxie i wspierać decyzje inwestycyjne bez użycia lokalnego modelu AI. System analizuje dane rynkowe, ocenia setupy, monitoruje otwarte pozycje, liczy ryzyko oraz wysyła powiadomienia na telefon. Transakcje pozostają ręczne po stronie użytkownika.
+## Cel
 
-## Główne funkcje V1
+TradingHelper ma działać 24/7 na komputerze z Linuxem bez lokalnego modelu AI. System ma:
 
-- połączenie z kontem IBKR w trybie paper trading,
-- synchronizacja podstawowych danych portfela,
-- skaner rynku,
-- analiza EMA, RSI, MACD, ATR i wolumenu,
-- scoring setupów 0-100,
-- risk manager,
-- wirtualny trailing stop i alerty sprzedażowe,
-- powiadomienia przez ntfy,
-- lokalna baza SQLite,
-- backtesting strategii,
-- lokalny panel WWW w późniejszym etapie.
+- pobierać dane rachunku i rynku przez oficjalne TWS API IBKR,
+- skanować zdefiniowany universe instrumentów,
+- liczyć wskaźniki techniczne i scoring setupów 0–100,
+- wyliczać wielkość pozycji, ryzyko, SL/TP i risk/reward,
+- monitorować otwarte pozycje i wirtualny trailing stop,
+- wysyłać powiadomienia na telefon przez ntfy,
+- zapisywać historię sygnałów i zdarzeń w SQLite,
+- udostępniać lokalne API/panel WWW,
+- umożliwiać backtesting przed użyciem strategii przy realnym kapitale.
 
-## Bezpieczeństwo
+## Zasady bezpieczeństwa V1
 
-Projekt nie powinien przechowywać haseł, tokenów ani innych sekretów w repozytorium. Dane konfiguracyjne wrażliwe należy trzymać wyłącznie w lokalnym pliku `.env`, który jest ignorowany przez Git.
+1. Tylko konto **IBKR Paper Trading** podczas developmentu i testów integracyjnych.
+2. W IB Gateway/TWS pozostawione **Read-Only API**.
+3. Brak kodu do `placeOrder`, `cancelOrder` lub automatycznej egzekucji.
+4. Sekrety i lokalne dane nie trafiają do Git (`.env`, SQLite, logi).
+5. Każda strategia musi przejść testy jednostkowe, backtest i okres paper trading przed oznaczeniem jako gotowa.
 
-Na początku integracja z IBKR ma działać wyłącznie w trybie paper trading. Automatyczne składanie zleceń nie jest częścią V1.
+## Stack
 
-## Architektura
+- Python 3.11+
+- oficjalne Interactive Brokers TWS API (`ibapi` instalowane z paczki IBKR)
+- IB Gateway na Linuxie
+- FastAPI + Uvicorn — lokalne API/panel
+- pandas + NumPy — analiza danych
+- SQLite — dane lokalne
+- ntfy — powiadomienia mobilne
+- pytest + Ruff — testy i jakość kodu
+- GitHub Actions — CI
+
+## Struktura
 
 ```text
 TradingHelper/
-├── config/
-│   └── settings.example.yaml
-├── data/
-├── src/
-│   └── trading_helper/
-│       ├── alerts/
-│       ├── ibkr/
-│       ├── risk/
-│       ├── scanner/
-│       ├── config.py
-│       └── main.py
+├── .github/workflows/ci.yml
+├── config/settings.example.yaml
+├── docs/
+├── scripts/
+├── src/trading_helper/
 ├── tests/
 ├── .env.example
 ├── .gitignore
-├── pyproject.toml
-└── README.md
+├── Makefile
+└── pyproject.toml
 ```
 
-## Uruchomienie lokalne
+## Szybki start
+
+Pełna instrukcja: [docs/SETUP_LINUX.md](docs/SETUP_LINUX.md) i [docs/IBKR_SETUP.md](docs/IBKR_SETUP.md).
 
 ```bash
 git clone https://github.com/Rabuuwu/TradingHelper.git
 cd TradingHelper
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+python -m pip install --upgrade pip
+pip install -e '.[dev]'
 cp .env.example .env
-python -m trading_helper.main
+cp config/settings.example.yaml config/settings.yaml
+make test
+python -m trading_helper.main self-check
+python -m trading_helper.main init-db
 ```
 
-## Plan rozwoju
+Oficjalny pakiet `ibapi` instalujemy osobno z katalogu `source/pythonclient` pobranej paczki TWS API:
 
-1. Fundament projektu i konfiguracja.
-2. Połączenie z IBKR Paper Trading.
-3. Pobieranie pozycji, salda i danych rynkowych.
-4. Wskaźniki techniczne i scoring.
-5. Risk manager i monitoring pozycji.
-6. ntfy i alerty mobilne.
-7. Backtesting.
-8. Lokalny panel WWW.
-9. Długotrwałe testy paper trading.
-10. Dopiero później użycie przy realnym kapitale.
+```bash
+./scripts/install_ibapi.sh ~/IBJts/source/pythonclient
+```
 
-## Ważne
+## Dokumenty sterujące projektem
 
-TradingHelper jest narzędziem analitycznym. Wynik skanera lub scoring nie jest gwarancją zysku ani rekomendacją inwestycyjną.
+- **Cele:** [docs/GOALS.md](docs/GOALS.md)
+- **Wymagania:** [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)
+- **Checklista/roadmapa:** [docs/ROADMAP.md](docs/ROADMAP.md)
+- **Architektura:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Testy:** [docs/TESTING.md](docs/TESTING.md)
+- **Bezpieczeństwo:** [docs/SECURITY.md](docs/SECURITY.md)
+- **Specyfikacja strategii:** [docs/STRATEGY_SPEC.md](docs/STRATEGY_SPEC.md)
+- **Operacje 24/7:** [docs/OPERATIONS.md](docs/OPERATIONS.md)
+
+## Disclaimer
+
+TradingHelper jest narzędziem analitycznym. Scoring, alerty i poziomy ryzyka nie gwarantują wyniku inwestycji i nie zastępują własnej oceny ryzyka.
