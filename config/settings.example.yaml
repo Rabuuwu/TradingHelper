@@ -1,0 +1,33 @@
+app:
+  name: TradingHelper
+  timezone: Europe/Warsaw
+  paper_trading_only: true
+
+scanner:
+  minimum_score_to_watch: 60
+  minimum_score_to_alert: 75
+  scan_interval_seconds: 300
+
+risk:
+  max_risk_per_trade_percent: 1.0
+  max_open_positions: 8
+  minimum_risk_reward: 2.0
+  max_portfolio_exposure_percent: 80.0
+
+trailing_stop:
+  enabled: true
+  atr_multiplier: 2.5
+  never_move_stop_down: true
+
+indicators:
+  ema_fast: 20
+  ema_medium: 50
+  ema_slow: 200
+  rsi_period: 14
+  atr_period: 14
+
+notifications:
+  buy_setup: true
+  sell_warning: true
+  trailing_stop: true
+  risk_warning: true
