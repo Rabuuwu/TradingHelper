@@ -3,16 +3,22 @@ app:
   timezone: Europe/Warsaw
   paper_trading_only: true
 
+universe:
+  symbols: [AAPL, MSFT, NVDA, AMD, AMZN, META, GOOGL]
+
 scanner:
   minimum_score_to_watch: 60
   minimum_score_to_alert: 75
   scan_interval_seconds: 300
+  bar_size: "1 hour"
+  history_duration: "1 Y"
 
 risk:
   max_risk_per_trade_percent: 1.0
   max_open_positions: 8
   minimum_risk_reward: 2.0
   max_portfolio_exposure_percent: 80.0
+  max_single_position_percent: 20.0
 
 trailing_stop:
   enabled: true
@@ -25,6 +31,7 @@ indicators:
   ema_slow: 200
   rsi_period: 14
   atr_period: 14
+  volume_average_period: 20
 
 notifications:
   buy_setup: true

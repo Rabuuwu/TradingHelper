@@ -6,27 +6,31 @@ dist/
 build/
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
 
 # Virtual environments
 .venv/
 venv/
 
-# Secrets
+# Secrets / local config
 .env
 .env.*
 !.env.example
+config/settings.yaml
 
-# Local data
+# Local runtime data
 data/*.db
 data/*.sqlite
 data/*.sqlite3
 logs/
+*.log
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
 
 # IDE / OS
 .vscode/
 .idea/
 .DS_Store
-
-# Coverage
-.coverage
-htmlcov/
