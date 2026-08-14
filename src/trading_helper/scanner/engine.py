@@ -40,6 +40,11 @@ def analyze(symbol: str, frame: pd.DataFrame) -> ScanResult:
         macd_signal=float(macd_frame["signal"].iloc[-1]),
         macd_histogram=float(macd_frame["histogram"].iloc[-1]),
         volume_ratio=float(volume20.iloc[-1]),
+        breakout=bool(close.iloc[-1] > frame["high"].astype(float).iloc[-21:-1].max()),
+        pullback=bool(
+            close.iloc[-1] > ema50.iloc[-1]
+            and abs(close.iloc[-1] - ema20.iloc[-1]) / close.iloc[-1] <= 0.02
+        ),
     )
     values = [
         snapshot.price,

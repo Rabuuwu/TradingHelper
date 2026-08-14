@@ -24,4 +24,4 @@ jobs:
       - name: Lint
         run: ruff check src tests
       - name: Tests
-        run: pytest --cov=trading_helper --cov-report=term-missing
+        run: pytest --cov=trading_helper --cov-report=term-missing --cov-fail-under=70

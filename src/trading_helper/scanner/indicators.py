@@ -68,3 +68,34 @@ def volume_ratio(volume: pd.Series, period: int = 20) -> pd.Series:
     values = volume.astype(float)
     average = values.rolling(period).mean()
     return values / average.replace(0, np.nan)
+
+
+def bollinger_bands(series: pd.Series, period: int = 20, deviations: float = 2.0) -> pd.DataFrame:
+    if period <= 1 or deviations <= 0:
+        raise ValueError("Bollinger parameters must be positive")
+    values = series.astype(float)
+    middle = values.rolling(period).mean()
+    deviation = values.rolling(period).std(ddof=0)
+    return pd.DataFrame(
+        {
+            "lower": middle - deviation * deviations,
+            "middle": middle,
+            "upper": middle + deviation * deviations,
+            "bandwidth": (deviation * deviations * 2) / middle.replace(0, np.nan),
+        },
+        index=series.index,
+    )
+
+
+def obv(close: pd.Series, volume: pd.Series) -> pd.Series:
+    if len(close) != len(volume):
+        raise ValueError("close and volume must have equal length")
+    direction = np.sign(close.astype(float).diff()).fillna(0)
+    return (direction * volume.astype(float)).cumsum()
+
+
+def roc(series: pd.Series, period: int = 12) -> pd.Series:
+    if period <= 0:
+        raise ValueError("ROC period must be positive")
+    values = series.astype(float)
+    return values.pct_change(periods=period) * 100

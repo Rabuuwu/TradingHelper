@@ -1,44 +1,15 @@
-# Strategia testów
-
-## Warstwy
-
-### 1. Unit tests
-Dotyczą czystej logiki: wskaźniki, scoring, risk manager, trailing stop, konfiguracja i persistence. Nie wymagają IBKR ani internetu.
-
-### 2. Integration tests — Paper Trading
-
-- connect/disconnect,
-- account summary,
-- positions,
-- historical bars,
-- reconnect,
-- błędny port / brak Gateway,
-- brak uprawnień do market data.
-
-Nigdy nie używamy konta Live do CI.
-
-### 3. Backtest tests
-
-Sprawdzają brak look-ahead, deterministyczny wynik, koszty i poprawne zamykanie pozycji na danych testowych.
-
-### 4. Soak test
-
-Minimum 14 dni na Paper: uptime, reconnecty, pamięć/CPU, alerty, duplikaty i brakujące dane.
-
-## Komendy
+# Testowanie
 
 ```bash
-make lint
-make test
-pytest --cov=trading_helper --cov-report=html
+ruff check src tests
+pytest --cov=trading_helper --cov-report=term-missing
 ```
 
-## Definition of Done dla funkcji
+CI używa Python 3.11/3.12 i wyłącznie fake/sample data. Testujemy wskaźniki, scoring,
+risk, fractional sizing, koszty, cache/provider, portfolio, journal, alert outbox,
+auth, SQLite, API ASGI, service pipeline i backtest. Prawdziwy provider ma osobny zestaw
+testów kontraktowych poza CI oraz fixtures nagrane bez sekretów.
 
-- [ ] kod działa,
-- [ ] błędne wejście jest obsłużone,
-- [ ] unit test happy path,
-- [ ] unit test edge/error path,
-- [ ] lint przechodzi,
-- [ ] dokumentacja/config zaktualizowane,
-- [ ] jeśli dotyczy IBKR — test Paper.
+Definition of Done: kod, happy/error tests, dokumentacja, lint, coverage i działający
+scenariusz. Target bieżący >=70%, docelowy >=80%. Soak test 14 dni pozostaje osobnym
+kryterium operacyjnym.

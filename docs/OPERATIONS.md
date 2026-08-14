@@ -1,45 +1,28 @@
-# Uruchamianie 24/7 i operacje
+# Operacje 24/7
 
-## Zasada
+Tryby: `scan-once` (jeden skan), `worker` (scheduler), `api` (tylko web), `run`
+(zalecane: scheduler + API/PWA), `backup` i `self-check`.
 
-Najpierw uruchamiamy ręcznie i stabilizujemy projekt. Dopiero po przejściu testów Paper konfigurujemy usługę systemd.
+Health: `/health` sprawdza proces, `/ready` bazę/provider, `/status` pokazuje uptime,
+market, provider, scheduler oraz timestampy zapisane w system state. Event log odpowiada
+na pytanie, czy scanner i alerty działały w nocy. SSE `/events/stream` aktualizuje klientów.
 
-## Tryb developerski
+## Tailscale first
 
-Uruchom IB Gateway i zaloguj konto Paper, a w drugim terminalu:
+1. Zainstaluj Tailscale na serwerze i urządzeniach.
+2. Ustaw `APP_HOST` na adres Tailscale serwera albo kontrolowane `0.0.0.0` z firewallem.
+3. Włącz `AUTH_ENABLED=true`.
+4. Otwieraj `http://100.x.x.x:8787` wyłącznie w prywatnym tailnecie.
 
-```bash
-cd ~/TradingHelper
-source .venv/bin/activate
-python -m trading_helper.main self-check
-python -m trading_helper.main api
-```
+Nie otwieraj portu routera. Dla domeny publicznej zastosuj HTTPS reverse proxy i dodatkowe
+zabezpieczenia. Tailscale i auth nie zastępują aktualizacji systemu oraz backupu.
 
-## Healthcheck
+## Monitoring i recovery
 
-```bash
-curl -fsS http://127.0.0.1:8787/health
-```
+Monitoruj `/ready`, wiek `last_market_data_update`, `last_successful_scan`,
+`last_position_monitor`, `last_notification`, stan schedulera, miejsce na dysku i ntfy.
+Systemd restartuje proces po awarii. Alerty PENDING/FAILED są ponawiane do pięciu razy.
 
-## systemd
-
-Przykład znajduje się w `deploy/trading-helper.service.example`. Przed aktywacją ustaw prawidłowego użytkownika, katalog projektu i ścieżkę do virtualenv.
-
-## Backup
-
-SQLite backup wykonujemy mechanizmem backup SQLite lub po kontrolowanym zatrzymaniu procesu. Pliku bazy nie commitujemy do Git.
-
-## Aktualizacja
-
-1. zatrzymaj helper,
-2. `git pull`,
-3. aktywuj `.venv`,
-4. `pip install -e '.[dev]'`,
-5. `make test`,
-6. uruchom `self-check`,
-7. uruchom usługę,
-8. sprawdź `/health`.
-
-## Monitoring minimalny
-
-Monitorujemy proces, `/health`, połączenie z IBKR, czas ostatniego skanu i świecy, błędy skanera, miejsce na dysku i rozmiar SQLite.
+Backup SQLite wykonuje `python -m trading_helper.main backup`; timer robi go codziennie
+i stosuje retencję z YAML. Przy odtwarzaniu zatrzymaj usługę, zachowaj uszkodzoną bazę,
+skopiuj backup do ścieżki `TRADING_HELPER_DB` i ponownie uruchom usługę.

@@ -1,62 +1,29 @@
 # TradingHelper
 
-Lokalny, lekki asystent do analizy rynku i monitorowania portfela z integracją Interactive Brokers (IBKR).
+Broker-independent Trading Assistant działający 24/7 na jednym serwerze Linux.
+Analizuje dane rynkowe, tworzy wyjaśnialne sygnały, monitoruje ręczne i symulowane
+pozycje oraz wysyła alerty. Broker (XTB, IBKR, Trading212 lub inny) służy wyłącznie
+do ręcznego wykonania decyzji użytkownika.
 
-> **Status:** fundament projektu / Paper Trading first. TradingHelper nie wykonuje automatycznie transakcji. Decyzja i złożenie zlecenia pozostają po stronie użytkownika.
+> TradingHelper nigdy nie loguje się do brokera, nie klika w jego aplikacji i nie
+> posiada funkcji automatycznego kupna, sprzedaży ani składania zleceń.
 
-## Cel
+## Co działa
 
-TradingHelper ma działać 24/7 na komputerze z Linuxem bez lokalnego modelu AI. System ma:
+- neutralny `MarketDataProvider` z provenance, retry, rate-limit-ready API i SQLite cache,
+- offline `SampleMarketDataProvider`, dzięki któremu start nie wymaga brokera ani internetu,
+- multi-timeframe: trend 1D i setup 1H (konfigurowalne),
+- EMA20/50/200, RSI, MACD, ATR, Bollinger Bands, relative volume, OBV i ROC,
+- deterministyczny scoring 0–100 z breakdown, reasons, warnings i statusem danych,
+- entry zone, SL, TP1/TP2, R:R, fractional sizing i trade feasibility dla kapitału 100 PLN,
+- konfigurowalne profile kosztów XTB/IBKR/custom (profile nie są integracjami),
+- ręczne portfolio, paper/simulation positions, trailing ATR i trade journal,
+- SQLite, outbox alertów ntfy z retry, event log, scheduler, watchdog-ready status i backup,
+- FastAPI, SSE live updates, responsywny dashboard instalowalny jako PWA,
+- opcjonalne single-user auth bcrypt + HttpOnly cookie,
+- systemd i bezpieczny zdalny dostęp przez Tailscale.
 
-- pobierać dane rachunku i rynku przez oficjalne TWS API IBKR,
-- skanować zdefiniowany universe instrumentów,
-- liczyć wskaźniki techniczne i scoring setupów 0–100,
-- wyliczać wielkość pozycji, ryzyko, SL/TP i risk/reward,
-- monitorować otwarte pozycje i wirtualny trailing stop,
-- wysyłać powiadomienia na telefon przez ntfy,
-- zapisywać historię sygnałów i zdarzeń w SQLite,
-- udostępniać lokalne API/panel WWW,
-- umożliwiać backtesting przed użyciem strategii przy realnym kapitale.
-
-## Zasady bezpieczeństwa V1
-
-1. Tylko konto **IBKR Paper Trading** podczas developmentu i testów integracyjnych.
-2. W IB Gateway/TWS pozostawione **Read-Only API**.
-3. Brak kodu do `placeOrder`, `cancelOrder` lub automatycznej egzekucji.
-4. Sekrety i lokalne dane nie trafiają do Git (`.env`, SQLite, logi).
-5. Każda strategia musi przejść testy jednostkowe, backtest i okres paper trading przed oznaczeniem jako gotowa.
-
-## Stack
-
-- Python 3.11+
-- oficjalne Interactive Brokers TWS API (`ibapi` instalowane z paczki IBKR)
-- IB Gateway na Linuxie
-- FastAPI + Uvicorn — lokalne API/panel
-- pandas + NumPy — analiza danych
-- SQLite — dane lokalne
-- ntfy — powiadomienia mobilne
-- pytest + Ruff — testy i jakość kodu
-- GitHub Actions — CI
-
-## Struktura
-
-```text
-TradingHelper/
-├── .github/workflows/ci.yml
-├── config/settings.example.yaml
-├── docs/
-├── scripts/
-├── src/trading_helper/
-├── tests/
-├── .env.example
-├── .gitignore
-├── Makefile
-└── pyproject.toml
-```
-
-## Szybki start
-
-Pełna instrukcja: [docs/SETUP_LINUX.md](docs/SETUP_LINUX.md) i [docs/IBKR_SETUP.md](docs/IBKR_SETUP.md).
+## Szybki start bez brokera
 
 ```bash
 git clone https://github.com/Rabuuwu/TradingHelper.git
@@ -67,32 +34,54 @@ python -m pip install --upgrade pip
 pip install -e '.[dev]'
 cp .env.example .env
 cp config/settings.example.yaml config/settings.yaml
-make test
+pytest
+ruff check src tests
 python -m trading_helper.main self-check
 python -m trading_helper.main init-db
+python -m trading_helper.main scan-once
+python -m trading_helper.main run
 ```
 
-Oficjalny pakiet `ibapi` instalujemy osobno z katalogu `source/pythonclient` pobranej paczki TWS API:
+Dashboard: `http://127.0.0.1:8787`. Polecenie `run` uruchamia centralny backend,
+scheduler i web UI. Zamknięcie przeglądarki nie zatrzymuje analiz ani ntfy.
 
-```bash
-./scripts/install_ibapi.sh ~/IBJts/source/pythonclient
-```
+## Najważniejsze endpointy
 
-## Dokumenty sterujące projektem
+- `GET /health`, `/ready`, `/status`
+- `GET /signals`, `/signals/{symbol}`
+- `GET|POST|DELETE /watchlist`
+- `GET|POST|PUT|DELETE /portfolio`
+- `GET|POST|PUT /trades`
+- `GET /scanner/status`, `POST /scanner/run`
+- `GET|PUT /settings/public`
+- `GET /events`, `GET /events/stream` (SSE)
 
-- **Cele:** [docs/GOALS.md](docs/GOALS.md)
-- **Wymagania:** [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)
-- **Checklista/roadmapa:** [docs/ROADMAP.md](docs/ROADMAP.md)
-- **Architektura:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- **Testy:** [docs/TESTING.md](docs/TESTING.md)
-- **Bezpieczeństwo:** [docs/SECURITY.md](docs/SECURITY.md)
-- **Specyfikacja strategii:** [docs/STRATEGY_SPEC.md](docs/STRATEGY_SPEC.md)
-- **Operacje 24/7:** [docs/OPERATIONS.md](docs/OPERATIONS.md)
+## Bezpieczny zdalny dostęp
+
+Domyślny bind to `127.0.0.1`. Do telefonu i innych komputerów rekomendowany jest
+Tailscale, bez publicznego port-forwardingu. Przy nasłuchu na prywatnym interfejsie
+włącz `AUTH_ENABLED=true`. Publiczny Internet wymaga dodatkowo HTTPS reverse proxy.
+Szczegóły: [docs/OPERATIONS.md](docs/OPERATIONS.md) i
+[docs/SECURITY.md](docs/SECURITY.md).
+
+## Dokumentacja
+
+- [Architektura](docs/ARCHITECTURE.md)
+- [Market data](docs/MARKET_DATA.md)
+- [Signal engine](docs/SIGNAL_ENGINE.md)
+- [Manual portfolio](docs/MANUAL_PORTFOLIO.md)
+- [Cost model](docs/COST_MODEL.md)
+- [Roadmapa](docs/ROADMAP.md)
+- [Linux/operacje](docs/SETUP_LINUX.md), [testy](docs/TESTING.md)
 
 ## Disclaimer
 
-TradingHelper jest narzędziem analitycznym. Scoring, alerty i poziomy ryzyka nie gwarantują wyniku inwestycji i nie zastępują własnej oceny ryzyka.
+TradingHelper jest narzędziem analitycznym i nie gwarantuje wyników. Użytkownik sam
+ocenia i ręcznie wykonuje każdą transakcję. Score oznacza jakość setupu według reguł,
+a nie prawdopodobieństwo sukcesu. Dane mogą być opóźnione lub nieaktualne; przed
+transakcją należy sprawdzić bieżącą cenę w aplikacji brokera.
 
 ---
 
-Projekt został stworzony przy wykorzystaniu narzędzi sztucznej inteligencji (SI) wspomagających projektowanie, tworzenie kodu i dokumentacji.
+Projekt został stworzony przy wykorzystaniu narzędzi sztucznej inteligencji (SI)
+wspomagających projektowanie, tworzenie kodu i dokumentacji.

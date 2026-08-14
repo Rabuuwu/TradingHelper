@@ -1,6 +1,15 @@
 import pandas as pd
 
-from trading_helper.scanner.indicators import atr, ema, macd, rsi, volume_ratio
+from trading_helper.scanner.indicators import (
+    atr,
+    bollinger_bands,
+    ema,
+    macd,
+    obv,
+    roc,
+    rsi,
+    volume_ratio,
+)
 
 
 def test_indicators_return_aligned_series() -> None:
@@ -19,3 +28,6 @@ def test_indicators_return_aligned_series() -> None:
     assert list(macd(close).columns) == ["macd", "signal", "histogram"]
     assert atr(frame).iloc[-1] > 0
     assert volume_ratio(frame["volume"]).iloc[-1] > 0
+    assert bollinger_bands(close).iloc[-1]["upper"] > close.iloc[-1]
+    assert obv(close, frame["volume"]).iloc[-1] > 0
+    assert roc(close).iloc[-1] > 0

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f5f7fb">
+  <title>TradingHelper</title>
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div><span class="logo">TH</span><strong>TradingHelper</strong></div>
+    <button id="statusButton" class="status"><span class="dot"></span> CONNECTING</button>
+  </header>
+  <nav>
+    <button data-view="dashboard" class="active" data-i18n="nav_dashboard">Pulpit</button>
+    <button data-view="portfolio" data-i18n="nav_portfolio">Portfel</button>
+    <button data-view="journal" data-i18n="nav_journal">Dziennik</button>
+    <button data-view="watchlist" data-i18n="nav_watchlist">Obserwowane</button>
+    <button data-view="events" data-i18n="nav_system">System</button>
+    <button data-view="settings" data-i18n="nav_settings">Ustawienia</button>
+  </nav>
+  <main>
+    <section id="healthPanel" class="health card hidden"></section>
+    <section id="dashboard" class="view">
+      <div class="hero"><div><small data-i18n="hero_badge">NIEZALEŻNY ASYSTENT TRADINGOWY</small>
+        <h1 data-i18n="hero_title">Rynek w jednym miejscu.</h1><p data-i18n="hero_text">Analiza i monitoring. Każdą transakcję wykonujesz ręcznie.</p>
+      </div><button id="scanButton" class="primary" data-i18n="run_scan">Uruchom skan</button></div>
+      <div class="section-title"><h2 data-i18n="top_setups">Najlepsze setupy</h2><span id="lastUpdate">—</span></div>
+      <div id="signals" class="grid"></div>
+    </section>
+    <section id="portfolio" class="view hidden"><div class="section-title"><h2 data-i18n="portfolio">Portfel</h2>
+      <button id="addPaper" class="primary" data-i18n="simulate_entry">Symuluj wejście</button></div><div id="positions"></div></section>
+    <section id="journal" class="view hidden"><h2 data-i18n="trade_journal">Dziennik transakcji</h2><div id="stats" class="stats"></div>
+      <div id="trades"></div></section>
+    <section id="watchlist" class="view hidden"><h2 data-i18n="watchlist">Lista obserwowanych</h2>
+      <form id="watchlistForm" class="card inline-form">
+        <label><span data-i18n="symbol">Symbol</span><input name="symbol" placeholder="np. NVDA" required maxlength="20"></label>
+        <label><span data-i18n="notes">Notatka (opcjonalnie)</span><input name="notes" placeholder="np. obserwuj wybicie" maxlength="200"></label>
+        <button class="primary" data-i18n="add_to_watchlist">Dodaj do listy</button>
+      </form><div id="watchItems"></div></section>
+    <section id="events" class="view hidden"><h2 data-i18n="system_events">Zdarzenia systemowe</h2><div id="eventList"></div></section>
+    <section id="settings" class="view hidden"><h2 data-i18n="safe_settings">Bezpieczne ustawienia</h2><form id="settingsForm" class="card">
+      <label><span data-i18n="portfolio_value">Wartość portfela</span><input name="portfolio_value" type="number" min="1" step="0.01"></label>
+      <label><span data-i18n="risk_percent">Ryzyko %</span><input name="risk_percent" type="number" min="0.1" max="10" step="0.1"></label>
+      <label><span data-i18n="scan_interval">Interwał skanowania w sekundach</span><input name="scan_interval_seconds" type="number" min="60"></label>
+      <label><span data-i18n="display_currency">Waluta prezentacji</span><select name="display_currency"></select></label>
+      <label><span data-i18n="language">Język</span><select name="language"><option value="pl">Polski</option><option value="en">English</option></select></label>
+      <p class="warning" data-i18n="fx_warning">Kursy walut pochodzą z konfiguracji YAML i nie są kursami live.</p>
+      <button class="primary" data-i18n="save">Zapisz</button></form></section>
+  </main>
+  <dialog id="signalDialog"><button class="close">×</button><div id="signalDetails"></div></dialog>
+  <dialog id="loginDialog"><h2 data-i18n="sign_in">Zaloguj się</h2><form id="loginForm"><label><span data-i18n="username">Nazwa użytkownika</span>
+    <input name="username" autocomplete="username" required></label><label><span data-i18n="password">Hasło</span>
+    <input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="primary" data-i18n="sign_in">Zaloguj się</button><p id="loginError" class="warning hidden" data-i18n="invalid_credentials">Nieprawidłowe dane logowania</p></form></dialog>
+  <div id="offline" class="offline hidden" data-i18n="server_offline">SERWER OFFLINE — wyświetlane dane mogą być nieaktualne</div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
