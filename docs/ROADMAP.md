@@ -21,6 +21,8 @@ DONE oznacza kod + testy + dokumentację + działający scenariusz.
 - [x] 16. Backtesting — bazowy engine bez entry lookahead i z kosztami.
 - [x] 17. CI/test coverage — Python 3.11/3.12, lint, testy, coverage >=70%.
 - [x] 18. Paper simulation — atomowe BUY/SELL, saldo, ledger, test 1000 cykli i E2E.
+  Oddzielny autonomiczny runner PAPER ma niezmienny kapitał startowy, pełny decision log
+  i statystyki strategii; nigdy nie wykonuje transakcji u brokera.
 - [ ] 19. 14-day soak test — wymaga rzeczywistego upływu 14 dni.
 - [ ] 20. First controlled live test with small capital — dopiero po backteście i soak teście.
 

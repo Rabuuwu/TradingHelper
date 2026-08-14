@@ -316,6 +316,65 @@ CREATE TABLE IF NOT EXISTS provider_credit_usage (
 CREATE INDEX IF NOT EXISTS idx_provider_credit_usage_day
 ON provider_credit_usage(provider,used_at);
 
+CREATE TABLE IF NOT EXISTS auto_paper_accounts (
+    id INTEGER PRIMARY KEY CHECK(id=1),
+    currency TEXT NOT NULL,
+    initial_cash REAL NOT NULL,
+    cash_balance REAL NOT NULL,
+    realized_pnl REAL NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'RUNNING',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS auto_paper_positions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    signal_id INTEGER,
+    status TEXT NOT NULL DEFAULT 'OPEN',
+    entry_date TEXT NOT NULL,
+    entry_price REAL NOT NULL,
+    quantity REAL NOT NULL,
+    currency TEXT NOT NULL,
+    entry_fx_rate REAL NOT NULL,
+    entry_fee REAL NOT NULL,
+    stop_price REAL NOT NULL,
+    trailing_stop REAL NOT NULL,
+    target_price REAL NOT NULL,
+    target_price_2 REAL,
+    highest_price REAL NOT NULL,
+    atr REAL NOT NULL DEFAULT 0,
+    signal_score INTEGER NOT NULL,
+    exit_date TEXT,
+    exit_price REAL,
+    exit_fx_rate REAL,
+    exit_fee REAL,
+    exit_reason TEXT,
+    realized_pnl REAL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_auto_paper_positions_status
+ON auto_paper_positions(status,symbol);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_auto_paper_one_open_symbol
+ON auto_paper_positions(symbol) WHERE status='OPEN';
+
+CREATE TABLE IF NOT EXISTS auto_paper_decisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL,
+    action TEXT NOT NULL,
+    symbol TEXT,
+    signal_id INTEGER,
+    position_id INTEGER,
+    price REAL,
+    quantity REAL,
+    account_cash REAL NOT NULL,
+    account_equity REAL NOT NULL,
+    reason TEXT NOT NULL,
+    details_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_auto_paper_decisions_created
+ON auto_paper_decisions(created_at DESC);
+
 -- Legacy tables retained so existing user data is never deleted during migration.
 CREATE TABLE IF NOT EXISTS positions_cache (
     account TEXT NOT NULL, con_id INTEGER NOT NULL, symbol TEXT NOT NULL,
@@ -427,6 +486,10 @@ def init_database(path: str) -> None:
         )
         connection.execute(
             "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (9, ?)",
+            (utc_now(),),
+        )
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (10, ?)",
             (utc_now(),),
         )
 

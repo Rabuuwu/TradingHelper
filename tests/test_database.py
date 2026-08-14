@@ -24,6 +24,9 @@ def test_database_initializes_core_tables(tmp_path) -> None:
         "paper_accounts",
         "paper_ledger",
         "provider_credit_usage",
+        "auto_paper_accounts",
+        "auto_paper_positions",
+        "auto_paper_decisions",
     }.issubset(names)
 
 
