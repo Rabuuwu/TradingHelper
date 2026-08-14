@@ -24,7 +24,7 @@ działa offline. Domyślny dashboard: `http://127.0.0.1:8787`.
 ## Auth
 
 ```bash
-python -m trading_helper.main hash-password 'długie-bezpieczne-hasło'
+python -m trading_helper.main hash-password
 ```
 
 Wklej wynik jako `AUTH_PASSWORD_HASH`, ustaw `AUTH_ENABLED=true`, `AUTH_USERNAME` oraz

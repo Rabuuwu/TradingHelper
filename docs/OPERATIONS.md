@@ -14,6 +14,9 @@ na pytanie, czy scanner i alerty działały w nocy. SSE `/events/stream` aktuali
 3. Włącz `AUTH_ENABLED=true`.
 4. Otwieraj `http://100.x.x.x:8787` wyłącznie w prywatnym tailnecie.
 
+Hash hasła generuj interaktywnie przez
+`python -m trading_helper.main hash-password`, aby hasło nie trafiło do historii shella.
+
 Nie otwieraj portu routera. Dla domeny publicznej zastosuj HTTPS reverse proxy i dodatkowe
 zabezpieczenia. Tailscale i auth nie zastępują aktualizacji systemu oraz backupu.
 
