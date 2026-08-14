@@ -40,3 +40,21 @@ def test_paper_reset_requires_closed_positions(tmp_path) -> None:
     paper.sell(position_id, 10, 1, 0)
     paper.reset(200)
     assert paper.account()["cash_balance"] == 200
+
+
+def test_paper_buy_is_fully_rolled_back_when_ledger_write_fails(tmp_path) -> None:
+    repository = Repository(str(tmp_path / "paper.db"))
+    paper = PaperPortfolioService(repository, 100, "PLN")
+    repository.execute(
+        """CREATE TRIGGER reject_paper_ledger BEFORE INSERT ON paper_ledger
+        BEGIN SELECT RAISE(ABORT, 'forced ledger failure'); END"""
+    )
+    try:
+        paper.buy(PaperBuy("AAPL", 10, 1, "PLN", 1, 0))
+    except Exception as exc:
+        assert "forced ledger failure" in str(exc)
+    else:
+        raise AssertionError("Expected forced transaction failure")
+    assert paper.account()["cash_balance"] == 100
+    assert repository.rows("SELECT * FROM manual_positions") == []
+    assert repository.rows("SELECT * FROM trades") == []

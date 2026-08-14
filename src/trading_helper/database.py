@@ -184,6 +184,9 @@ CREATE TABLE IF NOT EXISTS portfolio_snapshots (
     total_value REAL NOT NULL,
     invested_value REAL NOT NULL,
     unrealized_pnl REAL NOT NULL,
+    realized_pnl REAL NOT NULL DEFAULT 0,
+    total_pnl REAL NOT NULL DEFAULT 0,
+    cash_balance REAL NOT NULL DEFAULT 0,
     currency TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_timestamp
@@ -278,6 +281,31 @@ CREATE TABLE IF NOT EXISTS system_state (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS auth_sessions (
+    token_hash TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_expiry ON auth_sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS auth_login_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL,
+    client_id TEXT NOT NULL,
+    attempted_at TEXT NOT NULL,
+    success INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_auth_attempts_lookup
+ON auth_login_attempts(username,client_id,attempted_at DESC);
+
+CREATE TABLE IF NOT EXISTS soak_observations (
+    observation_date TEXT PRIMARY KEY,
+    observed_at TEXT NOT NULL,
+    status TEXT NOT NULL,
+    details_json TEXT NOT NULL DEFAULT '{}'
+);
+
 -- Legacy tables retained so existing user data is never deleted during migration.
 CREATE TABLE IF NOT EXISTS positions_cache (
     account TEXT NOT NULL, con_id INTEGER NOT NULL, symbol TEXT NOT NULL,
@@ -340,6 +368,15 @@ def init_database(path: str) -> None:
         _ensure_columns(connection, "manual_positions", POSITION_COLUMNS)
         _ensure_columns(
             connection,
+            "portfolio_snapshots",
+            {
+                "realized_pnl": "REAL NOT NULL DEFAULT 0",
+                "total_pnl": "REAL NOT NULL DEFAULT 0",
+                "cash_balance": "REAL NOT NULL DEFAULT 0",
+            },
+        )
+        _ensure_columns(
+            connection,
             "alerts",
             {
                 "status": "TEXT NOT NULL DEFAULT 'PENDING'",
@@ -366,6 +403,18 @@ def init_database(path: str) -> None:
             "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (5, ?)",
             (utc_now(),),
         )
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (6, ?)",
+            (utc_now(),),
+        )
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (7, ?)",
+            (utc_now(),),
+        )
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (8, ?)",
+            (utc_now(),),
+        )
 
 
 class Repository:
@@ -377,6 +426,12 @@ class Repository:
         with connect(self.path) as connection:
             cursor = connection.execute(query, params)
             return int(cursor.lastrowid or 0)
+
+    @contextmanager
+    def transaction(self):
+        """Expose one connection for a multi-statement atomic domain operation."""
+        with connect(self.path) as connection:
+            yield connection
 
     def rows(self, query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
         with connect(self.path) as connection:

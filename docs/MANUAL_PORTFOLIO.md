@@ -19,3 +19,8 @@ dodaje przychód po kosztach i aktualizuje realized P/L.
 `paper_ledger` przechowuje każdy wirtualny BUY/SELL, a `paper_accounts` saldo, kapitał
 początkowy i zrealizowany wynik. Reset salda jest blokowany, dopóki istnieją otwarte
 pozycje PAPER. Te endpointy nigdy nie komunikują się z brokerem ani nie wykonują zleceń.
+
+Kupno, pozycja, trade, saldo i ledger są zapisywane w jednej transakcji SQLite. Pozycje
+PAPER można tworzyć wyłącznie przez `/paper/buy`; ogólne `/portfolio` nie omija księgowości.
+Historia rozdziela market value, cash, realized, unrealized i total P/L, uwzględniając koszt
+wejścia zapisany przy historycznym kursie FX.

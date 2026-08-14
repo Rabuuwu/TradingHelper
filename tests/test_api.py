@@ -1,9 +1,12 @@
-from fastapi import Response
+import pytest
+from fastapi import HTTPException, Response
 
 from trading_helper.api import (
+    PositionCreate,
     PublicSettingsUpdate,
     WatchlistInput,
     _decode_signal,
+    add_position,
     add_watchlist,
     dashboard,
     delete_watchlist,
@@ -71,3 +74,18 @@ def test_watchlist_can_be_added_and_removed(tmp_path, monkeypatch) -> None:
     assert [(item["symbol"], item["notes"]) for item in watchlist()] == [("NVDA", "wybicie")]
     delete_watchlist("nvda")
     assert watchlist() == []
+
+
+def test_generic_portfolio_endpoint_cannot_bypass_paper_ledger() -> None:
+    with pytest.raises(HTTPException) as error:
+        add_position(
+            PositionCreate(
+                symbol="AAPL",
+                entry_price=10,
+                quantity=1,
+                currency="USD",
+                entry_date="2026-08-14",
+                mode="PAPER",
+            )
+        )
+    assert error.value.status_code == 422

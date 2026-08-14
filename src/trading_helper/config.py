@@ -62,6 +62,7 @@ class StrategySettings:
     cost_profile: str
     max_cost_to_profit_percent: float
     notification_cooldown_minutes: int
+    signal_retention_days: int
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any]) -> StrategySettings:
@@ -112,6 +113,7 @@ class StrategySettings:
             cost_profile=str(costs.get("active_profile", "custom")),
             max_cost_to_profit_percent=float(costs.get("max_cost_to_profit_percent", 30.0)),
             notification_cooldown_minutes=int(notifications.get("cooldown_minutes", 240)),
+            signal_retention_days=int(scanner.get("signal_retention_days", 90)),
         )
         if not 0 <= result.minimum_score_to_watch <= result.minimum_score_to_alert <= 100:
             raise ValueError("scanner score thresholds must satisfy 0 <= watch <= alert <= 100")
@@ -125,6 +127,7 @@ class StrategySettings:
             result.max_risk_per_trade_percent,
             result.max_single_position_percent,
             result.atr_stop_multiplier,
+            result.signal_retention_days,
         )
         if any(value <= 0 for value in positive):
             raise ValueError("strategy numeric limits must be positive")

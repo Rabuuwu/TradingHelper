@@ -21,6 +21,9 @@ przechowują osobnych portfeli. PWA może być zamknięta, a scheduler i ntfy na
 - `signal_engine.py`: deterministyczne punkty, klasyfikacja i wyjaśnienia.
 - `risk/`: sizing, R:R, koszty i feasibility; brak brokera.
 - `portfolio.py`, `journal.py`: pozycje wpisane przez użytkownika lub paper mode.
+- `paper.py`: atomowa księgowość symulatora; saldo, pozycja, trade i ledger w jednej transakcji.
+- `signals.py`: najnowsze sygnały, historia per symbol i retencja.
+- `soak.py`: przyspieszone invariant tests oraz rzeczywisty 14-dniowy health tracker.
 - `service.py`: orkiestracja skanów, monitora i scheduler 24/7.
 - `database.py`: wersjonowany, kompatybilny schemat SQLite.
 - `api.py`, `web/`: kliencka warstwa HTTP/SSE/PWA, bez logiki tradingowej.

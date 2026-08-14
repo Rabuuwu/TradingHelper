@@ -8,6 +8,7 @@ universe:
   symbols: [AAPL, MSFT, NVDA, AMD, SPY]
 
 scanner:
+  signal_retention_days: 90
   enabled: true
   minimum_score_to_watch: 40
   minimum_score_to_alert: 70

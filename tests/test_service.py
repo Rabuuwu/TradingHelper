@@ -1,7 +1,9 @@
+import pytest
+
 from trading_helper.config import Settings, StrategySettings
 from trading_helper.database import Repository
 from trading_helper.market_data.sample import SampleMarketDataProvider
-from trading_helper.portfolio import ManualPortfolioService, PositionInput
+from trading_helper.paper import PaperBuy, PaperPortfolioService
 from trading_helper.service import TradingHelperService
 
 
@@ -51,11 +53,12 @@ def test_position_monitor_records_portfolio_history(tmp_path) -> None:
         SampleMarketDataProvider(),
         {"costs": {"profiles": {"custom": {}}}},
     )
-    ManualPortfolioService(service.repository).simulate(
-        PositionInput("AAPL", "SIMULATION", 100, 0.1, "USD", "2026-08-14")
+    PaperPortfolioService(service.repository, 100, "PLN").buy(
+        PaperBuy("AAPL", 10, 0.1, "USD", 4, 0.1)
     )
     service.monitor_positions()
     snapshot = service.repository.rows("SELECT * FROM portfolio_snapshots")[0]
     assert snapshot["total_value"] > 0
-    assert snapshot["invested_value"] == 100.0
+    assert snapshot["invested_value"] > 0
+    assert snapshot["total_pnl"] == pytest.approx(snapshot["total_value"] - 100)
     assert snapshot["currency"] == "PLN"

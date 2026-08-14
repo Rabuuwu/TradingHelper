@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from trading_helper import __version__
-from trading_helper.auth import AuthManager
+from trading_helper.auth import AuthManager, LoginRateLimited
 from trading_helper.config import load_settings, load_strategy_config, load_strategy_settings
 from trading_helper.database import Repository, utc_now
 from trading_helper.journal import TradeJournal
@@ -20,6 +20,8 @@ from trading_helper.paper import PaperBuy, PaperPortfolioService
 from trading_helper.portfolio import ManualPortfolioService, PositionInput
 from trading_helper.scanner.indicators import ema
 from trading_helper.service import TradingHelperService
+from trading_helper.signals import SignalQueryService
+from trading_helper.soak import SoakMonitor
 
 app = FastAPI(title="TradingHelper", version=__version__)
 STATIC_DIR = Path(__file__).parent / "web"
@@ -27,7 +29,7 @@ if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 _settings = load_settings()
-_auth = AuthManager(_settings)
+_auth = AuthManager(_settings, Repository(_settings.database_path))
 _service: TradingHelperService | None = None
 _started_at = datetime.now(UTC)
 
@@ -212,6 +214,11 @@ def dashboard() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/sw.js", include_in_schema=False)
+def service_worker() -> FileResponse:
+    return FileResponse(STATIC_DIR / "sw.js", media_type="application/javascript")
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "version": __version__}
@@ -240,7 +247,11 @@ def ready(response: Response) -> dict[str, Any]:
 
 @app.post("/auth/login")
 def login(data: LoginInput, response: Response, request: Request) -> dict[str, str]:
-    token = _auth.login(data.username, data.password)
+    client_id = request.client.host if request.client else "unknown"
+    try:
+        token = _auth.login(data.username, data.password, client_id)
+    except LoginRateLimited as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     if token is None:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     response.set_cookie(
@@ -298,12 +309,15 @@ def status() -> dict[str, Any]:
     }
 
 
+@app.get("/soak/status", dependencies=[Depends(require_auth)])
+def soak_status() -> dict[str, Any]:
+    return SoakMonitor(repository()).report()
+
+
 @app.get("/signals", dependencies=[Depends(require_auth)])
 def signals(limit: int = 100, min_score: int = 0) -> list[dict[str, Any]]:
     limit = max(1, min(limit, 500))
-    rows = repository().rows(
-        "SELECT * FROM signals WHERE score>=? ORDER BY id DESC LIMIT ?", (min_score, limit)
-    )
+    rows = SignalQueryService(repository()).latest(min_score, limit)
     return [_decode_signal(row) for row in rows]
 
 
@@ -315,6 +329,16 @@ def signal_details(symbol: str) -> dict[str, Any]:
     if not rows:
         raise HTTPException(status_code=404, detail="Signal not found")
     return _decode_signal(rows[0])
+
+
+@app.get("/signals/{symbol}/history", dependencies=[Depends(require_auth)])
+def signal_history(
+    symbol: str, limit: int = Query(default=100, ge=1, le=500)
+) -> list[dict[str, Any]]:
+    return [
+        _decode_signal(row)
+        for row in SignalQueryService(repository()).history(symbol, limit)
+    ]
 
 
 @app.get("/market/candles/{symbol}", dependencies=[Depends(require_auth)])
@@ -408,7 +432,8 @@ def portfolio(monitor: bool = False) -> list[dict[str, Any]]:
 @app.get("/portfolio/history", dependencies=[Depends(require_auth)])
 def portfolio_history(limit: int = Query(default=500, ge=1, le=2000)) -> dict[str, Any]:
     rows = repository().rows(
-        """SELECT timestamp,total_value,invested_value,unrealized_pnl,currency
+        """SELECT timestamp,total_value,invested_value,unrealized_pnl,realized_pnl,
+        total_pnl,cash_balance,currency
         FROM portfolio_snapshots ORDER BY timestamp DESC LIMIT ?""",
         (limit,),
     )
@@ -424,19 +449,25 @@ def paper_account() -> dict[str, Any]:
     positions = repository().rows(
         "SELECT * FROM manual_positions WHERE mode='PAPER' AND status='OPEN' ORDER BY id DESC"
     )
-    market_value = unrealized = 0.0
+    market_value = 0.0
     for position in positions:
         current_price = position["current_price"] or position["entry_price"]
         fx = service().fx.get_rate(position["currency"], account["currency"])
         value = current_price * position["quantity"] * fx.rate
-        cost = position["entry_price"] * position["quantity"] * fx.rate
         market_value += value
-        unrealized += value - cost
+    open_cost = repository().rows(
+        """SELECT COALESCE(-SUM(l.cash_change),0) AS cost
+        FROM paper_ledger l JOIN manual_positions p ON p.id=l.position_id
+        WHERE l.transaction_type='BUY' AND p.mode='PAPER' AND p.status='OPEN'"""
+    )[0]["cost"]
+    unrealized = market_value - float(open_cost)
+    equity = float(account["cash_balance"]) + market_value
     return {
         **account,
         "market_value": round(market_value, 4),
-        "equity": round(account["cash_balance"] + market_value, 4),
+        "equity": round(equity, 4),
         "unrealized_pnl": round(unrealized, 4),
+        "total_pnl": round(equity - float(account["initial_cash"]), 4),
         "open_positions": len(positions),
         "ledger": paper.ledger(50),
     }
@@ -529,9 +560,14 @@ def paper_sell(data: PaperSellInput) -> dict[str, Any]:
 
 @app.post("/portfolio", dependencies=[Depends(require_auth)], status_code=201)
 def add_position(data: PositionCreate) -> dict[str, int]:
+    if data.mode.upper() == "PAPER":
+        raise HTTPException(
+            status_code=422,
+            detail="Use /paper/buy so PAPER cash and ledger remain consistent",
+        )
     payload = PositionInput(**data.model_dump())
     manager = ManualPortfolioService(repository())
-    position_id = manager.simulate(payload) if data.mode == "PAPER" else manager.add(payload)
+    position_id = manager.add(payload)
     return {"id": position_id}
 
 

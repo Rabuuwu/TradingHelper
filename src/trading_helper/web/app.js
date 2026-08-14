@@ -4,6 +4,9 @@ $('#loginDialog').showModal();throw new Error('401')}if(!response.ok)throw new E
 return response.status===204?null:response.json()};
 const fmt=n=>Number(n||0).toFixed(2);
 const money=(value,currency)=>`${fmt(value)} ${currency||''}`.trim();
+// Every value originating in the API or a user-controlled form must be escaped before
+// it is interpolated into an HTML template. Static translation strings are trusted.
+const esc=window.TradingHelperSecurity.escapeHtml;
 const translations={pl:{nav_dashboard:'Pulpit',nav_portfolio:'Portfel',nav_journal:'Dziennik',
 nav_watchlist:'Obserwowane',nav_system:'System',nav_settings:'Ustawienia',hero_badge:'NIEZALEŻNY ASYSTENT TRADINGOWY',
 hero_title:'Rynek w jednym miejscu.',hero_text:'Analiza i monitoring. Każdą transakcję wykonujesz ręcznie.',
@@ -59,10 +62,10 @@ ${statusLabel(s.market)} &nbsp; <b>Skaner:</b> ${statusLabel(s.scheduler)} &nbsp
 $('#offline').classList.add('hidden')}catch(e){
 $('#statusButton').textContent='● OFFLINE';$('#offline').classList.remove('hidden')}}
 async function loadSignals(){const rows=await api('/signals?min_score=40&limit=30');$('#signals').innerHTML=rows.map(s=>
-`<article class="signal" data-symbol="${s.symbol}"><div class="meta">${s.symbol} · ${s.timeframe}</div>
-<div class="score">${s.score}</div><div class="label">${statusLabel(s.label)}</div>
-<p>${money(s.price,s.instrument_currency)} · R:R ${fmt(s.risk_reward)}</p>
-${s.display_values&&s.display_currency!==s.instrument_currency?`<p class="meta">≈ ${money(s.display_values.price,s.display_currency)}</p>`:''}
+`<article class="signal" data-symbol="${esc(s.symbol)}"><div class="meta">${esc(s.symbol)} · ${esc(s.timeframe)}</div>
+<div class="score">${s.score}</div><div class="label">${esc(statusLabel(s.label))}</div>
+<p>${esc(money(s.price,s.instrument_currency))} · R:R ${fmt(s.risk_reward)}</p>
+${s.display_values&&s.display_currency!==s.instrument_currency?`<p class="meta">≈ ${esc(money(s.display_values.price,s.display_currency))}</p>`:''}
 ${s.is_delayed?'<p class="warning">DATA DELAYED</p>':''}</article>`
 ).join('')||`<p>${tr('no_signals')}</p>`;$('#lastUpdate').textContent=new Date().toLocaleTimeString();
 document.querySelectorAll('.signal').forEach(el=>el.onclick=()=>showSignal(el.dataset.symbol))}
@@ -88,22 +91,22 @@ lineWidth:1,lineStyle:2,axisLabelVisible:true,title})});chart.timeScale().fitCon
 chartObserver=new ResizeObserver(entries=>chart.applyOptions({width:entries[0].contentRect.width}));chartObserver.observe(target);
 $('#chartMeta').textContent=`${data.source} · ${data.timeframe} · ${new Date(data.data_timestamp).toLocaleString()}${data.is_delayed?' · DELAYED':''}`}
 async function showSignal(symbol){const s=await api(`/signals/${symbol}`),b=s.breakdown||{},d=s.details||{},i=d.indicators||{};
-$('#signalDetails').innerHTML=`<div class="signal-head"><div><h2>${s.symbol} <small>${s.name}</small></h2>
-<span class="pill">${statusLabel(s.label)}</span></div><div class="score">${s.score}<small>/100</small></div></div>
-<div class="compact-stats"><div><small>${tr('analyzed_price')}</small><b>${money(s.price,s.instrument_currency)}</b></div>
-<div><small>${tr('display_value')}</small><b>${s.display_values?money(s.display_values.price,s.display_currency):'—'}</b></div>
+$('#signalDetails').innerHTML=`<div class="signal-head"><div><h2>${esc(s.symbol)} <small>${esc(s.name)}</small></h2>
+<span class="pill">${esc(statusLabel(s.label))}</span></div><div class="score">${s.score}<small>/100</small></div></div>
+<div class="compact-stats"><div><small>${tr('analyzed_price')}</small><b>${esc(money(s.price,s.instrument_currency))}</b></div>
+<div><small>${tr('display_value')}</small><b>${esc(s.display_values?money(s.display_values.price,s.display_currency):'—')}</b></div>
 <div><small>RSI</small><b>${fmt(i.rsi)}</b></div><div><small>ATR</small><b>${fmt(i.atr)}</b></div>
-<div><small>R:R</small><b>1:${fmt(s.risk_reward)}</b></div><div><small>FX</small><b>${s.fx_rate_source||'—'}</b></div></div>
+<div><small>R:R</small><b>1:${fmt(s.risk_reward)}</b></div><div><small>FX</small><b>${esc(s.fx_rate_source||'—')}</b></div></div>
 <div class="chart-toolbar"><div>${['1d','4h','1h','15m'].map(tf=>`<button data-timeframe="${tf}" class="chart-tf ${tf===s.timeframe?'active':''}">${tf.toUpperCase()}</button>`).join('')}</div>
 <small id="chartMeta"></small></div><div id="priceChart" class="price-chart"></div>
 <a class="chart-credit" href="https://www.tradingview.com" target="_blank" rel="noopener">Charts by TradingView</a>
-<div class="trade-grid"><div><small>ENTRY</small><b>${money(s.entry_low,s.instrument_currency)}–${money(s.entry_high,s.instrument_currency)}</b></div>
-<div><small>STOP</small><b>${money(s.stop_price,s.instrument_currency)}</b></div><div><small>TP1</small><b>${money(s.target_price,s.instrument_currency)}</b></div>
-<div><small>TP2</small><b>${money(s.target_price_2,s.instrument_currency)}</b></div></div>
-<details><summary>${tr('score_breakdown')}</summary><div class="breakdown-grid">${Object.entries(b).map(([k,v])=>`<div><span>${k}</span><b>${v}</b></div>`).join('')}</div></details>
-<details><summary>${tr('costs')}</summary><p>${tr('estimated_total')}: ${money(s.estimated_total_cost,s.instrument_currency)} ·
-${tr('net_expected')}: ${money(s.expected_net_profit,s.instrument_currency)}</p></details>
-<details ${s.warnings?.length?'open':''}><summary>${tr('warnings')}</summary><p>${(s.warnings||[]).join('<br>')||tr('none')}</p></details>
+<div class="trade-grid"><div><small>ENTRY</small><b>${esc(money(s.entry_low,s.instrument_currency))}–${esc(money(s.entry_high,s.instrument_currency))}</b></div>
+<div><small>STOP</small><b>${esc(money(s.stop_price,s.instrument_currency))}</b></div><div><small>TP1</small><b>${esc(money(s.target_price,s.instrument_currency))}</b></div>
+<div><small>TP2</small><b>${esc(money(s.target_price_2,s.instrument_currency))}</b></div></div>
+<details><summary>${tr('score_breakdown')}</summary><div class="breakdown-grid">${Object.entries(b).map(([k,v])=>`<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div></details>
+<details><summary>${tr('costs')}</summary><p>${tr('estimated_total')}: ${esc(money(s.estimated_total_cost,s.instrument_currency))} ·
+${tr('net_expected')}: ${esc(money(s.expected_net_profit,s.instrument_currency))}</p></details>
+<details ${s.warnings?.length?'open':''}><summary>${tr('warnings')}</summary><p>${(s.warnings||[]).map(esc).join('<br>')||tr('none')}</p></details>
 <section class="paper-trade-box"><h3>${tr('paper_simulator')}</h3><form id="paperBuyForm" class="paper-trade-form">
 <label>Entry<input name="price" type="number" min="0.0001" step="any" value="${((s.entry_low+s.entry_high)/2).toFixed(4)}" required></label>
 <label>Quantity<input name="quantity" type="number" min="0.000001" step="any" value="${s.recommended_quantity||''}" required></label>
@@ -118,8 +121,8 @@ await loadSignalPaperPositions(s.symbol);await renderChart(s,s.timeframe||'1h')}
 async function sellPaperPosition(id,symbol){if(!confirm(`${tr('simulate_sell')} ${symbol}?`))return;
 await api('/paper/sell',{method:'POST',body:JSON.stringify({position_id:id})});await loadSignalPaperPositions(symbol);await loadPortfolio()}
 async function loadSignalPaperPositions(symbol){const rows=await api('/portfolio');const matches=rows.filter(p=>p.mode==='PAPER'&&p.symbol===symbol);
-const target=$('#signalPaperPositions');if(!target)return;target.innerHTML=matches.map(p=>`<div class="paper-position"><span><b>${p.symbol}</b> ${p.quantity} @ ${money(p.entry_price,p.currency)}</span>
-<button class="danger signal-paper-sell" data-id="${p.id}" data-symbol="${p.symbol}">${tr('simulate_sell')}</button></div>`).join('');
+const target=$('#signalPaperPositions');if(!target)return;target.innerHTML=matches.map(p=>`<div class="paper-position"><span><b>${esc(p.symbol)}</b> ${esc(p.quantity)} @ ${esc(money(p.entry_price,p.currency))}</span>
+<button class="danger signal-paper-sell" data-id="${Number(p.id)}" data-symbol="${esc(p.symbol)}">${tr('simulate_sell')}</button></div>`).join('');
 document.querySelectorAll('.signal-paper-sell').forEach(b=>b.onclick=()=>sellPaperPosition(Number(b.dataset.id),b.dataset.symbol))}
 async function renderPortfolioChart(){const [history,account]=await Promise.all([api('/portfolio/history?limit=500'),api('/paper/account')]),target=$('#portfolioChart');
 const currency=account.currency;$('#paperCapitalForm').initial_cash.value=account.initial_cash;$('#portfolioSummary').innerHTML=`
@@ -133,25 +136,25 @@ grid:{vertLines:{color:'#f1f3f7'},horzLines:{color:'#f1f3f7'}},timeScale:{timeVi
 const value=chart.addSeries(LightweightCharts.AreaSeries,{lineColor:'#2563eb',topColor:'#2563eb44',bottomColor:'#2563eb05',lineWidth:2});
 value.setData(history.items.map(x=>({time:Math.floor(new Date(x.timestamp).getTime()/1000),value:x.total_value})));
 const pnl=chart.addSeries(LightweightCharts.HistogramSeries,{priceScaleId:'pnl',priceLineVisible:false,lastValueVisible:true});
-pnl.setData(history.items.map(x=>({time:Math.floor(new Date(x.timestamp).getTime()/1000),value:x.unrealized_pnl,
-color:x.unrealized_pnl>=0?'#16a36a88':'#dc262688'})));chart.priceScale('pnl').applyOptions({scaleMargins:{top:.75,bottom:0}});
+pnl.setData(history.items.map(x=>({time:Math.floor(new Date(x.timestamp).getTime()/1000),value:x.total_pnl,
+color:x.total_pnl>=0?'#16a36a88':'#dc262688'})));chart.priceScale('pnl').applyOptions({scaleMargins:{top:.75,bottom:0}});
 chart.timeScale().fitContent();new ResizeObserver(entries=>chart.applyOptions({width:entries[0].contentRect.width})).observe(target)}
 async function loadPortfolio(){const rows=await api('/portfolio');$('#positions').innerHTML=rows.map(p=>
-`<div class="row"><span><b>${p.symbol}</b><br><small>${p.broker} · ${p.mode}</small></span>
-<span>${p.quantity} @ ${money(p.entry_price,p.currency)}<br><small>${p.monitor_status} · P/L ${money(p.pnl,p.currency)}
-${p.display_pnl!=null&&p.display_currency!==p.currency?` · ≈ ${money(p.display_pnl,p.display_currency)}`:''}</small></span></div>`).join('')||`<p>${tr('no_positions')}</p>`;
+`<div class="row"><span><b>${esc(p.symbol)}</b><br><small>${esc(p.broker)} · ${esc(p.mode)}</small></span>
+<span>${esc(p.quantity)} @ ${esc(money(p.entry_price,p.currency))}<br><small>${esc(p.monitor_status)} · P/L ${esc(money(p.pnl,p.currency))}
+${p.display_pnl!=null&&p.display_currency!==p.currency?` · ≈ ${esc(money(p.display_pnl,p.display_currency))}`:''}</small></span></div>`).join('')||`<p>${tr('no_positions')}</p>`;
 const exits=rows.filter(p=>p.monitor_status&&p.monitor_status!=='HOLD'&&p.monitor_status!=='PENDING');
 $('#exitSignals').classList.toggle('hidden',!exits.length);$('#exitItems').innerHTML=exits.map(p=>
-`<div class="exit-alert"><b>${p.symbol}</b><span>${statusLabel(p.monitor_status)}</span><small>${money(p.current_price,p.currency)} · P/L ${fmt(p.pnl_percent)}%</small></div>`).join('');
+`<div class="exit-alert"><b>${esc(p.symbol)}</b><span>${esc(statusLabel(p.monitor_status))}</span><small>${esc(money(p.current_price,p.currency))} · P/L ${fmt(p.pnl_percent)}%</small></div>`).join('');
 await renderPortfolioChart()}
 async function loadTrades(){const result=await api('/trades');$('#stats').innerHTML=Object.entries(result.statistics)
 .map(([k,v])=>`<div><small>${k.replaceAll('_',' ')}</small><br><b>${v}</b></div>`).join('');
-$('#trades').innerHTML=result.items.map(t=>`<div class="row"><b>${t.symbol}</b><span>${t.status} · P/L ${fmt(t.pnl)}</span></div>`).join('')}
+$('#trades').innerHTML=result.items.map(t=>`<div class="row"><b>${esc(t.symbol)}</b><span>${esc(t.status)} · P/L ${fmt(t.pnl)}</span></div>`).join('')}
 async function loadEvents(){const rows=await api('/events');$('#eventList').innerHTML=rows.map(e=>
-`<div class="row"><span><b>${e.event_type}</b><br><small>${e.message}</small></span><small>${new Date(e.created_at).toLocaleString()}</small></div>`).join('')}
+`<div class="row"><span><b>${esc(e.event_type)}</b><br><small>${esc(e.message)}</small></span><small>${esc(new Date(e.created_at).toLocaleString())}</small></div>`).join('')}
 async function loadWatchlist(){const rows=await api('/watchlist');$('#watchItems').innerHTML=rows.map(w=>
-`<div class="row"><span><b>${w.symbol}</b><br><small>${w.notes||''}</small></span>
-<button class="danger remove-watch" data-symbol="${w.symbol}">${tr('remove')}</button></div>`).join('')||`<p>${tr('no_watchlist')}</p>`;
+`<div class="row"><span><b>${esc(w.symbol)}</b><br><small>${esc(w.notes||'')}</small></span>
+<button class="danger remove-watch" data-symbol="${esc(w.symbol)}">${tr('remove')}</button></div>`).join('')||`<p>${tr('no_watchlist')}</p>`;
 document.querySelectorAll('.remove-watch').forEach(button=>button.onclick=async()=>{
 await api(`/watchlist/${encodeURIComponent(button.dataset.symbol)}`,{method:'DELETE'});await loadWatchlist()})}
 async function loadSettings(){const s=await api('/settings/public'),f=$('#settingsForm');
@@ -182,7 +185,7 @@ $('#loginForm').onsubmit=async event=>{event.preventDefault();const f=event.targ
 password:f.password.value})});if(response.ok){$('#loginDialog').close();location.reload()}
 else $('#loginError').classList.remove('hidden')};
 $('#statusButton').onclick=()=>$('#healthPanel').classList.toggle('hidden');$('.close').onclick=()=>$('#signalDialog').close();
-if('serviceWorker'in navigator)navigator.serviceWorker.register('/static/sw.js');
+if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js',{scope:'/'});
 const events=new EventSource('/events/stream');let refreshTimer=null;events.addEventListener('update',()=>{
 clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>{loadSignals();loadStatus();
 if(!$('#portfolio').classList.contains('hidden'))loadPortfolio()},500)});events.onerror=()=>$('#offline').classList.remove('hidden');
