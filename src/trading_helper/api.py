@@ -121,14 +121,14 @@ def _decode_signal(row: dict[str, Any]) -> dict[str, Any]:
     instrument_currency = str(details.get("currency", strategy.portfolio_currency)).upper()
     display_currency = _runtime_public_setting("display_currency", strategy.portfolio_currency)
     display_currency = str(display_currency).upper()
-    rates = strategy.fx_rates_to_portfolio
-    instrument_rate = rates.get(instrument_currency)
-    display_rate = rates.get(display_currency)
     row["instrument_currency"] = instrument_currency
     row["display_currency"] = display_currency
-    row["fx_rate_source"] = "CONFIGURED_NOT_LIVE"
-    if instrument_rate and display_rate:
-        conversion = instrument_rate / display_rate
+    try:
+        fx = service().fx.get_rate(instrument_currency, display_currency)
+        conversion = fx.rate
+        row["fx_rate_source"] = fx.source
+        row["fx_rate_status"] = fx.status
+        row["fx_rate_timestamp"] = fx.data_timestamp.isoformat()
         monetary_fields = (
             "price",
             "entry_low",
@@ -145,10 +145,18 @@ def _decode_signal(row: dict[str, Any]) -> dict[str, Any]:
             if row.get(field) is not None
         }
         row["display_fx_rate"] = round(conversion, 6)
-    else:
+        if fx.status == "FALLBACK":
+            row.setdefault("warnings", []).append(
+                f"FX {instrument_currency}/{display_currency} uses configured fallback"
+            )
+        elif fx.status == "STALE":
+            row.setdefault("warnings", []).append(
+                f"FX {instrument_currency}/{display_currency} is stale"
+            )
+    except Exception as exc:
         row["display_values"] = None
         row.setdefault("warnings", []).append(
-            f"Missing configured FX rate for {instrument_currency} or {display_currency}"
+            f"FX conversion unavailable for {instrument_currency}/{display_currency}: {exc}"
         )
     return row
 
@@ -305,18 +313,22 @@ def portfolio(monitor: bool = False) -> list[dict[str, Any]]:
     display_currency = str(
         _runtime_public_setting("display_currency", strategy.portfolio_currency)
     ).upper()
-    display_rate = strategy.fx_rates_to_portfolio.get(display_currency)
     for row in rows:
         source_currency = str(row["currency"]).upper()
-        source_rate = strategy.fx_rates_to_portfolio.get(source_currency)
         row["display_currency"] = display_currency
-        row["fx_rate_source"] = "CONFIGURED_NOT_LIVE"
-        if source_rate and display_rate:
-            conversion = source_rate / display_rate
+        try:
+            fx = service().fx.get_rate(source_currency, display_currency)
+            conversion = fx.rate
+            row["fx_rate_source"] = fx.source
+            row["fx_rate_status"] = fx.status
+            row["fx_rate_timestamp"] = fx.data_timestamp.isoformat()
             row["display_entry_value"] = round(row["entry_price"] * row["quantity"] * conversion, 4)
             row["display_pnl"] = (
                 round(row["pnl"] * conversion, 4) if row.get("pnl") is not None else None
             )
+        except Exception as exc:
+            row["fx_rate_status"] = "UNAVAILABLE"
+            row["fx_warning"] = str(exc)
     return rows
 
 
@@ -371,6 +383,10 @@ def public_settings() -> dict[str, Any]:
     strategy = load_strategy_settings()
     config = load_strategy_config()
     overrides = repository().rows("SELECT key,value,updated_at FROM app_settings")
+    display_currency = str(
+        _runtime_public_setting("display_currency", strategy.portfolio_currency)
+    ).upper()
+    fx = service().fx.get_rate(strategy.portfolio_currency, display_currency)
     return {
         "provider": load_settings().market_data_provider,
         "symbols": strategy.symbols,
@@ -378,11 +394,15 @@ def public_settings() -> dict[str, Any]:
         "risk_percent": strategy.max_risk_per_trade_percent,
         "portfolio_value": strategy.portfolio_value,
         "portfolio_currency": strategy.portfolio_currency,
-        "display_currency": _runtime_public_setting(
-            "display_currency", strategy.portfolio_currency
-        ),
+        "display_currency": display_currency,
         "supported_currencies": sorted(strategy.fx_rates_to_portfolio),
-        "fx_rate_source": "YAML_CONFIG_NOT_LIVE",
+        "fx_rate_source": fx.source,
+        "fx_rate_status": fx.status,
+        "fx_rate_timestamp": fx.data_timestamp.isoformat(),
+        "fx_cache": repository().rows(
+            """SELECT base_currency,quote_currency,rate,data_source,data_timestamp
+            FROM fx_rates ORDER BY base_currency,quote_currency"""
+        ),
         "language": _runtime_public_setting(
             "language", config.get("app", {}).get("language", "pl")
         ),

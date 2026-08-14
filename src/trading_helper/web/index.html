@@ -47,7 +47,7 @@
       <label><span data-i18n="scan_interval">Interwał skanowania w sekundach</span><input name="scan_interval_seconds" type="number" min="60"></label>
       <label><span data-i18n="display_currency">Waluta prezentacji</span><select name="display_currency"></select></label>
       <label><span data-i18n="language">Język</span><select name="language"><option value="pl">Polski</option><option value="en">English</option></select></label>
-      <p class="warning" data-i18n="fx_warning">Kursy walut pochodzą z konfiguracji YAML i nie są kursami live.</p>
+      <p id="fxStatus" class="warning" data-i18n="fx_loading">Sprawdzanie kursów walut…</p>
       <button class="primary" data-i18n="save">Zapisz</button></form></section>
   </main>
   <dialog id="signalDialog"><button class="close">×</button><div id="signalDetails"></div></dialog>

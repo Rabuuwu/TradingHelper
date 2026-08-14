@@ -11,7 +11,8 @@ run_scan:'Uruchom skan',top_setups:'Najlepsze setupy',portfolio:'Portfel',simula
 trade_journal:'Dziennik transakcji',watchlist:'Lista obserwowanych',system_events:'Zdarzenia systemowe',
 safe_settings:'Bezpieczne ustawienia',portfolio_value:'Wartość portfela',risk_percent:'Ryzyko %',
 scan_interval:'Interwał skanowania w sekundach',display_currency:'Waluta prezentacji',language:'Język',
-fx_warning:'Kursy walut pochodzą z konfiguracji YAML i nie są kursami live.',save:'Zapisz',sign_in:'Zaloguj się',
+fx_loading:'Sprawdzanie kursów walut…',fx_live:'Kursy walut: Twelve Data, cache do 60 minut.',
+fx_fallback:'Kursy walut: awaryjny kurs z konfiguracji YAML.',fx_stale:'Kursy walut są nieaktualne.',save:'Zapisz',sign_in:'Zaloguj się',
 username:'Nazwa użytkownika',password:'Hasło',invalid_credentials:'Nieprawidłowe dane logowania',
 server_offline:'SERWER OFFLINE — wyświetlane dane mogą być nieaktualne',no_signals:'Brak sygnałów. Uruchom pierwszy skan.',
 no_positions:'Brak pozycji.',no_watchlist:'Lista obserwowanych jest pusta.',analyzed_price:'Analizowana cena',
@@ -29,7 +30,8 @@ hero_text:'Analysis and monitoring. You execute every trade manually.',run_scan:
 portfolio:'Portfolio',simulate_entry:'Simulate entry',trade_journal:'Trade journal',watchlist:'Watchlist',
 system_events:'System events',safe_settings:'Safe settings',portfolio_value:'Portfolio value',risk_percent:'Risk %',
 scan_interval:'Scan interval in seconds',display_currency:'Display currency',language:'Language',
-fx_warning:'FX rates come from YAML configuration and are not live market rates.',save:'Save',sign_in:'Sign in',
+fx_loading:'Checking FX rates…',fx_live:'FX rates: Twelve Data, cached up to 60 minutes.',
+fx_fallback:'FX rates: configured YAML fallback.',fx_stale:'FX rates are stale.',save:'Save',sign_in:'Sign in',
 username:'Username',password:'Password',invalid_credentials:'Invalid credentials',server_offline:'SERVER OFFLINE — displayed data may be stale',
 no_signals:'No signals. Run the first scan.',no_positions:'No positions.',no_watchlist:'Watchlist is empty.',
 symbol:'Symbol',notes:'Notes (optional)',add_to_watchlist:'Add to watchlist',remove:'Remove',
@@ -83,7 +85,10 @@ async function loadSettings(){const s=await api('/settings/public'),f=$('#settin
 f.portfolio_value.value=s.portfolio_value;f.risk_percent.value=s.risk_percent;
 f.scan_interval_seconds.value=s.scan_interval_seconds;f.display_currency.innerHTML=s.supported_currencies.map(currency=>
 `<option value="${currency}" ${currency===s.display_currency?'selected':''}>${currency}</option>`).join('');
-language=s.language||'pl';f.language.value=language;applyLanguage()}
+language=s.language||'pl';f.language.value=language;applyLanguage();
+const fxStatus=$('#fxStatus');if(s.fx_rate_status==='FALLBACK'){fxStatus.textContent=tr('fx_fallback')}
+else if(s.fx_rate_status==='STALE'){fxStatus.textContent=tr('fx_stale')}
+else{fxStatus.textContent=tr('fx_live')}}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
 b.classList.add('active');document.querySelectorAll('.view').forEach(x=>x.classList.add('hidden'));$('#'+b.dataset.view).classList.remove('hidden');
 ({portfolio:loadPortfolio,journal:loadTrades,watchlist:loadWatchlist,events:loadEvents,

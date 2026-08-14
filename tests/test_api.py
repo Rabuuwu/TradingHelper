@@ -47,7 +47,8 @@ def test_signal_values_are_converted_to_selected_display_currency(tmp_path, monk
     assert decoded["instrument_currency"] == "USD"
     assert decoded["display_currency"] == "PLN"
     assert decoded["display_values"]["price"] == 400.0
-    assert decoded["fx_rate_source"] == "CONFIGURED_NOT_LIVE"
+    assert decoded["fx_rate_source"] == "YAML_CONFIG"
+    assert decoded["fx_rate_status"] == "FALLBACK"
 
 
 def test_watchlist_can_be_added_and_removed(tmp_path, monkeypatch) -> None:

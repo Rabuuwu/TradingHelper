@@ -12,6 +12,7 @@ from trading_helper.alerts.ntfy import NtfyPublisher
 from trading_helper.alerts.service import AlertService
 from trading_helper.config import Settings, StrategySettings, load_strategy_config
 from trading_helper.database import Repository, utc_now
+from trading_helper.fx import FxRateService
 from trading_helper.market_data.cache import CachedMarketData
 from trading_helper.market_data.factory import create_provider
 from trading_helper.market_data.provider import MarketDataProvider
@@ -41,6 +42,15 @@ class TradingHelperService:
             self.provider,
             self.repository,
             ttl_seconds=min(strategy.scan_interval_seconds, 900),
+        )
+        fx_config = self.raw_config.get("fx", {})
+        self.fx = FxRateService(
+            self.repository,
+            self.provider,
+            strategy.fx_rates_to_portfolio,
+            strategy.portfolio_currency,
+            cache_minutes=int(fx_config.get("cache_minutes", 60)),
+            stale_after_minutes=int(fx_config.get("stale_after_minutes", 1440)),
         )
         profile_data = (
             self.raw_config.get("costs", {}).get("profiles", {}).get(strategy.cost_profile, {})
@@ -149,11 +159,15 @@ class TradingHelperService:
         target_1 = quote.price + risk_per_unit * 2
         target_2 = quote.price + risk_per_unit * 3
         rr = risk_reward_ratio(quote.price, stop, target_2)
-        fx_rate = self.strategy.fx_rates_to_portfolio.get(info.currency)
+        fx = self.fx.get_rate(info.currency, self.strategy.portfolio_currency)
+        fx_rate = fx.rate
         warnings: list[str] = []
-        if fx_rate is None:
-            fx_rate = 1.0
-            warnings.append(f"Missing configured FX rate for {info.currency}")
+        if fx.status == "FALLBACK":
+            warnings.append(
+                f"FX {info.currency}/{self.strategy.portfolio_currency} uses YAML fallback"
+            )
+        elif fx.status == "STALE":
+            warnings.append(f"FX {info.currency}/{self.strategy.portfolio_currency} is stale")
         portfolio_value = float(
             self.runtime_setting("portfolio_value", self.strategy.portfolio_value)
         )
@@ -244,6 +258,9 @@ class TradingHelperService:
                     "costs": costs.__dict__,
                     "currency": info.currency,
                     "fx_rate_to_portfolio": fx_rate,
+                    "fx_rate_source": fx.source,
+                    "fx_rate_status": fx.status,
+                    "fx_rate_timestamp": fx.data_timestamp.isoformat(),
                 }
             ),
         }
