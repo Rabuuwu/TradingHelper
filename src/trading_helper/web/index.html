@@ -31,7 +31,15 @@
       <div id="signals" class="grid"></div>
     </section>
     <section id="portfolio" class="view hidden"><div class="section-title"><h2 data-i18n="portfolio">Portfel</h2>
-      <button id="addPaper" class="primary" data-i18n="simulate_entry">Symuluj wejście</button></div><div id="positions"></div></section>
+      <button id="addPaper" class="primary" data-i18n="simulate_entry">Symuluj wejście</button></div>
+      <div id="portfolioSummary" class="compact-stats"></div>
+      <form id="paperCapitalForm" class="inline-form card"><label><span data-i18n="paper_capital">Kapitał symulatora</span>
+        <input name="initial_cash" type="number" min="1" step="0.01" required></label>
+        <button class="primary" data-i18n="reset_paper">Ustaw / resetuj PAPER</button></form>
+      <div class="card portfolio-chart-card"><div id="portfolioChart" class="portfolio-chart"></div>
+        <small data-i18n="portfolio_chart_note">Wartość i niezrealizowany wynik portfela</small></div>
+      <section id="exitSignals" class="exit-section hidden"><h3 data-i18n="exit_signals">Sygnały wyjścia</h3><div id="exitItems"></div></section>
+      <h3 data-i18n="positions">Pozycje</h3><div id="positions"></div></section>
     <section id="journal" class="view hidden"><h2 data-i18n="trade_journal">Dziennik transakcji</h2><div id="stats" class="stats"></div>
       <div id="trades"></div></section>
     <section id="watchlist" class="view hidden"><h2 data-i18n="watchlist">Lista obserwowanych</h2>
@@ -50,12 +58,15 @@
       <p id="fxStatus" class="warning" data-i18n="fx_loading">Sprawdzanie kursów walut…</p>
       <button class="primary" data-i18n="save">Zapisz</button></form></section>
   </main>
-  <dialog id="signalDialog"><button class="close">×</button><div id="signalDetails"></div></dialog>
+  <dialog id="signalDialog" class="signal-dialog"><button class="close">×</button><div id="signalDetails"></div></dialog>
   <dialog id="loginDialog"><h2 data-i18n="sign_in">Zaloguj się</h2><form id="loginForm"><label><span data-i18n="username">Nazwa użytkownika</span>
     <input name="username" autocomplete="username" required></label><label><span data-i18n="password">Hasło</span>
     <input name="password" type="password" autocomplete="current-password" required></label>
     <button class="primary" data-i18n="sign_in">Zaloguj się</button><p id="loginError" class="warning hidden" data-i18n="invalid_credentials">Nieprawidłowe dane logowania</p></form></dialog>
   <div id="offline" class="offline hidden" data-i18n="server_offline">SERWER OFFLINE — wyświetlane dane mogą być nieaktualne</div>
+  <script src="https://unpkg.com/lightweight-charts@5.2.0/dist/lightweight-charts.standalone.production.js"
+    integrity="sha384-q1KYLSKHgBnW5tWYGGR8+6YV4/iPy31dILoF2I1OD7XiVUvHEp/TaxIQVmB0j3R2"
+    crossorigin="anonymous"></script>
   <script src="/static/app.js" defer></script>
 </body>
 </html>

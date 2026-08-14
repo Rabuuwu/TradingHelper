@@ -8,6 +8,7 @@ from trading_helper.api import (
     dashboard,
     delete_watchlist,
     health,
+    market_candles,
     public_settings,
     ready,
     status,
@@ -29,6 +30,18 @@ def test_core_api_handlers_work_without_broker(tmp_path, monkeypatch) -> None:
     assert public_settings()["provider"] == "sample"
     assert "PLN" in public_settings()["supported_currencies"]
     assert str(dashboard().path).endswith("index.html")
+
+
+def test_market_candles_include_ema_and_provenance(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("TRADING_HELPER_DB", str(tmp_path / "candles.db"))
+    monkeypatch.setenv("SETTINGS_FILE", "config/settings.example.yaml")
+    payload = market_candles("aapl", "1h", 240)
+    assert payload["symbol"] == "AAPL"
+    assert payload["source"] == "sample"
+    assert len(payload["candles"]) == 240
+    assert {"time", "open", "high", "low", "close", "volume", "ema20", "ema200"} <= set(
+        payload["candles"][-1]
+    )
 
 
 def test_signal_values_are_converted_to_selected_display_currency(tmp_path, monkeypatch) -> None:

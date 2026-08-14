@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -16,7 +16,9 @@ from trading_helper.auth import AuthManager
 from trading_helper.config import load_settings, load_strategy_config, load_strategy_settings
 from trading_helper.database import Repository, utc_now
 from trading_helper.journal import TradeJournal
+from trading_helper.paper import PaperBuy, PaperPortfolioService
 from trading_helper.portfolio import ManualPortfolioService, PositionInput
+from trading_helper.scanner.indicators import ema
 from trading_helper.service import TradingHelperService
 
 app = FastAPI(title="TradingHelper", version=__version__)
@@ -105,6 +107,22 @@ class PublicSettingsUpdate(BaseModel):
     language: str | None = Field(default=None, min_length=2, max_length=2)
 
 
+class PaperAccountUpdate(BaseModel):
+    initial_cash: float = Field(gt=0)
+
+
+class PaperBuyInput(BaseModel):
+    symbol: str = Field(min_length=1, max_length=20)
+    signal_id: int | None = None
+    price: float | None = Field(default=None, gt=0)
+    quantity: float | None = Field(default=None, gt=0)
+
+
+class PaperSellInput(BaseModel):
+    position_id: int
+    price: float | None = Field(default=None, gt=0)
+
+
 def _decode_signal(row: dict[str, Any]) -> dict[str, Any]:
     for source, target in (
         ("reasons_json", "reasons"),
@@ -169,6 +187,24 @@ def _runtime_public_setting(key: str, default: Any) -> Any:
         return json.loads(rows[0]["value"])
     except (TypeError, json.JSONDecodeError):
         return default
+
+
+def _paper_service() -> PaperPortfolioService:
+    strategy = load_strategy_settings()
+    initial = float(_runtime_public_setting("portfolio_value", strategy.portfolio_value))
+    return PaperPortfolioService(repository(), initial, strategy.portfolio_currency)
+
+
+def _paper_fee(value: float, side: str, requires_fx: bool) -> float:
+    profile = service().fee_calculator.profile
+    commission = profile.commission_buy if side == "BUY" else profile.commission_sell
+    fixed = max(commission, profile.minimum_fee)
+    percent = profile.slippage_percent
+    if side == "BUY":
+        percent += profile.spread_percent
+    if requires_fx:
+        percent += profile.fx_percent
+    return fixed + value * percent / 100
 
 
 @app.get("/")
@@ -281,6 +317,43 @@ def signal_details(symbol: str) -> dict[str, Any]:
     return _decode_signal(rows[0])
 
 
+@app.get("/market/candles/{symbol}", dependencies=[Depends(require_auth)])
+def market_candles(
+    symbol: str,
+    timeframe: str = Query(default="1h", pattern="^(15m|1h|4h|1d)$"),
+    limit: int = Query(default=240, ge=220, le=500),
+) -> dict[str, Any]:
+    batch = service().market_data.get_candles(symbol.upper(), timeframe, limit)
+    frame = batch.frame.copy()
+    frame["ema20"] = ema(frame["close"], 20)
+    frame["ema50"] = ema(frame["close"], 50)
+    frame["ema200"] = ema(frame["close"], 200)
+    candles = []
+    for timestamp, row in frame.iterrows():
+        candles.append(
+            {
+                "time": int(datetime.fromisoformat(str(timestamp)).timestamp()),
+                "open": round(float(row["open"]), 6),
+                "high": round(float(row["high"]), 6),
+                "low": round(float(row["low"]), 6),
+                "close": round(float(row["close"]), 6),
+                "volume": round(float(row["volume"]), 2),
+                "ema20": round(float(row["ema20"]), 6),
+                "ema50": round(float(row["ema50"]), 6),
+                "ema200": round(float(row["ema200"]), 6),
+            }
+        )
+    return {
+        "symbol": batch.symbol,
+        "timeframe": timeframe,
+        "source": batch.provenance.source,
+        "data_timestamp": batch.provenance.timestamp.isoformat(),
+        "is_delayed": batch.provenance.is_delayed,
+        "delay_minutes": batch.provenance.delay_minutes,
+        "candles": candles,
+    }
+
+
 @app.get("/watchlist", dependencies=[Depends(require_auth)])
 def watchlist() -> list[dict[str, Any]]:
     return repository().rows("SELECT * FROM watchlist ORDER BY symbol")
@@ -330,6 +403,128 @@ def portfolio(monitor: bool = False) -> list[dict[str, Any]]:
             row["fx_rate_status"] = "UNAVAILABLE"
             row["fx_warning"] = str(exc)
     return rows
+
+
+@app.get("/portfolio/history", dependencies=[Depends(require_auth)])
+def portfolio_history(limit: int = Query(default=500, ge=1, le=2000)) -> dict[str, Any]:
+    rows = repository().rows(
+        """SELECT timestamp,total_value,invested_value,unrealized_pnl,currency
+        FROM portfolio_snapshots ORDER BY timestamp DESC LIMIT ?""",
+        (limit,),
+    )
+    rows.reverse()
+    latest = rows[-1] if rows else None
+    return {"items": rows, "latest": latest}
+
+
+@app.get("/paper/account", dependencies=[Depends(require_auth)])
+def paper_account() -> dict[str, Any]:
+    paper = _paper_service()
+    account = paper.account()
+    positions = repository().rows(
+        "SELECT * FROM manual_positions WHERE mode='PAPER' AND status='OPEN' ORDER BY id DESC"
+    )
+    market_value = unrealized = 0.0
+    for position in positions:
+        current_price = position["current_price"] or position["entry_price"]
+        fx = service().fx.get_rate(position["currency"], account["currency"])
+        value = current_price * position["quantity"] * fx.rate
+        cost = position["entry_price"] * position["quantity"] * fx.rate
+        market_value += value
+        unrealized += value - cost
+    return {
+        **account,
+        "market_value": round(market_value, 4),
+        "equity": round(account["cash_balance"] + market_value, 4),
+        "unrealized_pnl": round(unrealized, 4),
+        "open_positions": len(positions),
+        "ledger": paper.ledger(50),
+    }
+
+
+@app.put("/paper/account", dependencies=[Depends(require_auth)])
+def reset_paper_account(data: PaperAccountUpdate) -> dict[str, str]:
+    try:
+        _paper_service().reset(data.initial_cash)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    repository().event("paper_account_reset", "Paper account balance reset")
+    return {"status": "reset"}
+
+
+@app.post("/paper/buy", dependencies=[Depends(require_auth)], status_code=201)
+def paper_buy(data: PaperBuyInput) -> dict[str, Any]:
+    symbol = data.symbol.upper()
+    params: tuple[Any, ...]
+    if data.signal_id is not None:
+        query = "SELECT * FROM signals WHERE id=? AND symbol=?"
+        params = (data.signal_id, symbol)
+    else:
+        query = "SELECT * FROM signals WHERE symbol=? ORDER BY created_at DESC LIMIT 1"
+        params = (symbol,)
+    rows = repository().rows(query, params)
+    if not rows:
+        raise HTTPException(status_code=404, detail="Signal not found for paper buy")
+    signal = rows[0]
+    details = json.loads(signal.get("details_json") or "{}")
+    currency = str(details.get("currency") or "USD").upper()
+    price = data.price or (float(signal["entry_low"]) + float(signal["entry_high"])) / 2
+    quantity = data.quantity or float(signal["recommended_quantity"] or 0)
+    if quantity <= 0:
+        raise HTTPException(status_code=422, detail="Signal has no feasible paper quantity")
+    strategy = load_strategy_settings()
+    fx = service().fx.get_rate(currency, strategy.portfolio_currency)
+    fees = _paper_fee(price * quantity, "BUY", currency != strategy.portfolio_currency) * fx.rate
+    try:
+        position_id = _paper_service().buy(
+            PaperBuy(
+                symbol,
+                price,
+                quantity,
+                currency,
+                fx.rate,
+                fees,
+                signal["stop_price"],
+                signal["target_price"],
+                signal["target_price_2"],
+                signal["id"],
+                signal["score"],
+            )
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    repository().event(
+        "paper_buy", f"Paper buy {symbol}", details={"position_id": position_id}
+    )
+    return {"position_id": position_id, "price": price, "quantity": quantity, "fees": fees}
+
+
+@app.post("/paper/sell", dependencies=[Depends(require_auth)])
+def paper_sell(data: PaperSellInput) -> dict[str, Any]:
+    rows = repository().rows(
+        "SELECT * FROM manual_positions WHERE id=? AND mode='PAPER' AND status='OPEN'",
+        (data.position_id,),
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Open paper position not found")
+    position = rows[0]
+    quote = service().market_data.get_quote(position["symbol"])
+    price = data.price or quote.price
+    strategy = load_strategy_settings()
+    fx = service().fx.get_rate(position["currency"], strategy.portfolio_currency)
+    fees = _paper_fee(
+        price * position["quantity"],
+        "SELL",
+        position["currency"] != strategy.portfolio_currency,
+    ) * fx.rate
+    try:
+        result = _paper_service().sell(data.position_id, price, fx.rate, fees)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    repository().event(
+        "paper_sell", f"Paper sell {position['symbol']}", details={"position_id": data.position_id}
+    )
+    return {**result, "price": price, "fees": fees}
 
 
 @app.post("/portfolio", dependencies=[Depends(require_auth)], status_code=201)

@@ -16,6 +16,10 @@ def test_database_initializes_core_tables(tmp_path) -> None:
         "alerts",
         "account_summary",
         "system_state",
+        "fx_rates",
+        "portfolio_snapshots",
+        "paper_accounts",
+        "paper_ledger",
     }.issubset(names)
 
 

@@ -178,6 +178,45 @@ CREATE TABLE IF NOT EXISTS manual_positions (
 );
 CREATE INDEX IF NOT EXISTS idx_positions_symbol_status ON manual_positions(symbol, status);
 
+CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    total_value REAL NOT NULL,
+    invested_value REAL NOT NULL,
+    unrealized_pnl REAL NOT NULL,
+    currency TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_timestamp
+ON portfolio_snapshots(timestamp DESC);
+
+CREATE TABLE IF NOT EXISTS paper_accounts (
+    id INTEGER PRIMARY KEY CHECK(id = 1),
+    currency TEXT NOT NULL,
+    initial_cash REAL NOT NULL,
+    cash_balance REAL NOT NULL,
+    realized_pnl REAL NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS paper_ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    transaction_type TEXT NOT NULL,
+    symbol TEXT,
+    position_id INTEGER,
+    signal_id INTEGER,
+    quantity REAL,
+    price REAL,
+    gross_value REAL NOT NULL,
+    fees REAL NOT NULL DEFAULT 0,
+    cash_change REAL NOT NULL,
+    currency TEXT NOT NULL,
+    notes TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY(position_id) REFERENCES manual_positions(id),
+    FOREIGN KEY(signal_id) REFERENCES signals(id)
+);
+CREATE INDEX IF NOT EXISTS idx_paper_ledger_timestamp ON paper_ledger(timestamp DESC);
+
 CREATE TABLE IF NOT EXISTS trades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     position_id INTEGER,
@@ -317,6 +356,14 @@ def init_database(path: str) -> None:
         )
         connection.execute(
             "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (3, ?)",
+            (utc_now(),),
+        )
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (4, ?)",
+            (utc_now(),),
+        )
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (5, ?)",
             (utc_now(),),
         )
 

@@ -16,6 +16,7 @@ from trading_helper.fx import FxRateService
 from trading_helper.market_data.cache import CachedMarketData
 from trading_helper.market_data.factory import create_provider
 from trading_helper.market_data.provider import MarketDataProvider
+from trading_helper.paper import PaperPortfolioService
 from trading_helper.portfolio import PositionMonitor
 from trading_helper.risk.costs import CostEstimate, CostProfile, FeeCalculator
 from trading_helper.risk.manager import check_trade_feasibility, risk_reward_ratio
@@ -293,7 +294,17 @@ class TradingHelperService:
 
     def monitor_positions(self) -> list[dict[str, Any]]:
         results = self.position_monitor.run()
+        paper = PaperPortfolioService(
+            self.repository,
+            float(self.runtime_setting("portfolio_value", self.strategy.portfolio_value)),
+            self.strategy.portfolio_currency,
+        )
+        account = paper.account()
+        paper_market_value = 0.0
         for result in results:
+            fx = self.fx.get_rate(result["currency"], self.strategy.portfolio_currency)
+            if result["mode"] == "PAPER":
+                paper_market_value += result["current_price"] * result["quantity"] * fx.rate
             if result["monitor_status"] != "HOLD":
                 self.alerts.enqueue(
                     result["monitor_status"],
@@ -305,6 +316,18 @@ class TradingHelperService:
                     ),
                     f"{result['id']}:{result['monitor_status']}:{result['data_timestamp']}",
                 )
+        equity = float(account["cash_balance"]) + paper_market_value
+        self.repository.execute(
+            """INSERT INTO portfolio_snapshots(timestamp,total_value,invested_value,
+            unrealized_pnl,currency) VALUES(?,?,?,?,?)""",
+            (
+                utc_now(),
+                round(equity, 4),
+                round(float(account["initial_cash"]), 4),
+                round(equity - float(account["initial_cash"]), 4),
+                self.strategy.portfolio_currency,
+            ),
+        )
         self.alerts.dispatch_pending()
         return results
 

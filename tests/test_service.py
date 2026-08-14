@@ -1,6 +1,7 @@
 from trading_helper.config import Settings, StrategySettings
 from trading_helper.database import Repository
 from trading_helper.market_data.sample import SampleMarketDataProvider
+from trading_helper.portfolio import ManualPortfolioService, PositionInput
 from trading_helper.service import TradingHelperService
 
 
@@ -39,3 +40,22 @@ def test_scan_pipeline_persists_market_data_and_signals(tmp_path) -> None:
     signal = repository.rows("SELECT recommended_quantity,data_source FROM signals")[0]
     assert signal["recommended_quantity"] > 0
     assert signal["data_source"] == "sample"
+
+
+def test_position_monitor_records_portfolio_history(tmp_path) -> None:
+    settings = make_settings(str(tmp_path / "history.sqlite"))
+    strategy = StrategySettings.from_mapping({"universe": {"symbols": ["AAPL"]}})
+    service = TradingHelperService(
+        settings,
+        strategy,
+        SampleMarketDataProvider(),
+        {"costs": {"profiles": {"custom": {}}}},
+    )
+    ManualPortfolioService(service.repository).simulate(
+        PositionInput("AAPL", "SIMULATION", 100, 0.1, "USD", "2026-08-14")
+    )
+    service.monitor_positions()
+    snapshot = service.repository.rows("SELECT * FROM portfolio_snapshots")[0]
+    assert snapshot["total_value"] > 0
+    assert snapshot["invested_value"] == 100.0
+    assert snapshot["currency"] == "PLN"
