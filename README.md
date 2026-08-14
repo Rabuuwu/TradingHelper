@@ -51,6 +51,9 @@ scheduler i web UI. Zamknięcie przeglądarki nie zatrzymuje analiz ani ntfy.
 - `GET /signals`, `/signals/{symbol}`
 - `GET|POST|DELETE /watchlist`
 - `GET|POST|PUT|DELETE /portfolio`
+- `GET /portfolio/history`, `GET|PUT /paper/account`
+- `POST /paper/buy`, `POST /paper/sell` (wyłącznie lokalna symulacja)
+- `GET /market/candles/{symbol}`
 - `GET|POST|PUT /trades`
 - `GET /scanner/status`, `POST /scanner/run`
 - `GET|PUT /settings/public`

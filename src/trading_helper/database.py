@@ -78,6 +78,18 @@ CREATE TABLE IF NOT EXISTS quotes (
     fetched_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS fx_rates (
+    base_currency TEXT NOT NULL,
+    quote_currency TEXT NOT NULL,
+    rate REAL NOT NULL,
+    data_source TEXT NOT NULL,
+    data_timestamp TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    PRIMARY KEY(base_currency, quote_currency)
+);
+CREATE INDEX IF NOT EXISTS idx_fx_rates_timestamp
+ON fx_rates(base_currency, quote_currency, data_timestamp DESC);
+
 CREATE TABLE IF NOT EXISTS scan_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at TEXT NOT NULL,
@@ -165,6 +177,45 @@ CREATE TABLE IF NOT EXISTS manual_positions (
     updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_positions_symbol_status ON manual_positions(symbol, status);
+
+CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    total_value REAL NOT NULL,
+    invested_value REAL NOT NULL,
+    unrealized_pnl REAL NOT NULL,
+    currency TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_timestamp
+ON portfolio_snapshots(timestamp DESC);
+
+CREATE TABLE IF NOT EXISTS paper_accounts (
+    id INTEGER PRIMARY KEY CHECK(id = 1),
+    currency TEXT NOT NULL,
+    initial_cash REAL NOT NULL,
+    cash_balance REAL NOT NULL,
+    realized_pnl REAL NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS paper_ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    transaction_type TEXT NOT NULL,
+    symbol TEXT,
+    position_id INTEGER,
+    signal_id INTEGER,
+    quantity REAL,
+    price REAL,
+    gross_value REAL NOT NULL,
+    fees REAL NOT NULL DEFAULT 0,
+    cash_change REAL NOT NULL,
+    currency TEXT NOT NULL,
+    notes TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY(position_id) REFERENCES manual_positions(id),
+    FOREIGN KEY(signal_id) REFERENCES signals(id)
+);
+CREATE INDEX IF NOT EXISTS idx_paper_ledger_timestamp ON paper_ledger(timestamp DESC);
 
 CREATE TABLE IF NOT EXISTS trades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -303,6 +354,18 @@ def init_database(path: str) -> None:
             "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (2, ?)",
             (utc_now(),),
         )
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (3, ?)",
+            (utc_now(),),
+        )
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (4, ?)",
+            (utc_now(),),
+        )
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (5, ?)",
+            (utc_now(),),
+        )
 
 
 class Repository:
@@ -427,6 +490,36 @@ class Repository:
 
     def latest_quote(self, symbol: str) -> dict[str, Any] | None:
         rows = self.rows("SELECT * FROM quotes WHERE symbol=?", (symbol.upper(),))
+        return rows[0] if rows else None
+
+    def save_fx_rate(
+        self,
+        base_currency: str,
+        quote_currency: str,
+        rate: float,
+        source: str,
+        data_timestamp: str,
+    ) -> None:
+        self.execute(
+            """INSERT INTO fx_rates(base_currency,quote_currency,rate,data_source,
+            data_timestamp,fetched_at) VALUES(?,?,?,?,?,?) ON CONFLICT(base_currency,
+            quote_currency) DO UPDATE SET rate=excluded.rate,data_source=excluded.data_source,
+            data_timestamp=excluded.data_timestamp,fetched_at=excluded.fetched_at""",
+            (
+                base_currency.upper(),
+                quote_currency.upper(),
+                rate,
+                source,
+                data_timestamp,
+                utc_now(),
+            ),
+        )
+
+    def latest_fx_rate(self, base_currency: str, quote_currency: str) -> dict[str, Any] | None:
+        rows = self.rows(
+            "SELECT * FROM fx_rates WHERE base_currency=? AND quote_currency=?",
+            (base_currency.upper(), quote_currency.upper()),
+        )
         return rows[0] if rows else None
 
     def cached_candles(self, symbol: str, timeframe: str, limit: int) -> list[dict[str, Any]]:

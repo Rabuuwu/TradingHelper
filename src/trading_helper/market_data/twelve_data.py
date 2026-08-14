@@ -50,7 +50,7 @@ class TwelveDataProvider(MarketDataProvider):
         self._info: dict[str, SymbolInfo] = {}
         self._market_status: tuple[float, MarketStatus] | None = None
 
-    def _get(self, endpoint: str, **params: Any) -> dict[str, Any]:
+    def _get(self, endpoint: str, **params: Any) -> Any:
         self.rate_limiter.wait()
         try:
             response = self.session.get(
@@ -70,7 +70,10 @@ class TwelveDataProvider(MarketDataProvider):
             payload = response.json()
         except (requests.RequestException, ValueError) as exc:
             raise ProviderError("Invalid Twelve Data response") from exc
-        if payload.get("status") == "error" or (payload.get("code") and payload.get("message")):
+        if isinstance(payload, dict) and (
+            payload.get("status") == "error"
+            or (payload.get("code") and payload.get("message"))
+        ):
             raise ProviderError(f"Twelve Data: {payload.get('message', 'provider error')}")
         return payload
 
@@ -194,7 +197,7 @@ class TwelveDataProvider(MarketDataProvider):
         if self._market_status and time.monotonic() - self._market_status[0] < 300:
             return self._market_status[1]
         payload = self._get("market_state", country="United States")
-        rows = payload.get("data") or []
+        rows = payload if isinstance(payload, list) else payload.get("data") or []
         status = str(rows[0].get("is_market_open", "UNKNOWN")) if rows else "UNKNOWN"
         result = MarketStatus(
             "UNITED_STATES",

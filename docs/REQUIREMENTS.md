@@ -7,7 +7,8 @@
 3. Universe, watchlist i aktywne pozycje jako niezależne zbiory symboli.
 4. Multi-timeframe indicators/scanners oraz wyjaśnialny score 0–100.
 5. Risk, fractional sizing, konfigurowalne koszty i feasibility dla małego kapitału.
-6. Manual i paper portfolio, P/L, SL/TP, trailing i exit warnings.
+6. Manual i paper portfolio, saldo PAPER, ledger BUY/SELL, equity, P/L, SL/TP,
+   trailing i exit warnings. PAPER nigdy nie wysyła zlecenia do brokera.
 7. Trade journal oraz statystyki.
 8. ntfy/outbox, deduplikacja, retry i event log.
 9. FastAPI, SSE i PWA używane z jednej centralnej instancji.

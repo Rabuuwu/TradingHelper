@@ -33,6 +33,10 @@ risk:
   max_single_position_percent: 20.0
   fractional_shares: true
 
+fx:
+  cache_minutes: 60
+  stale_after_minutes: 1440
+
 trailing_stop:
   enabled: true
   atr_multiplier: 2.5

@@ -12,9 +12,11 @@ from trading_helper.alerts.ntfy import NtfyPublisher
 from trading_helper.alerts.service import AlertService
 from trading_helper.config import Settings, StrategySettings, load_strategy_config
 from trading_helper.database import Repository, utc_now
+from trading_helper.fx import FxRateService
 from trading_helper.market_data.cache import CachedMarketData
 from trading_helper.market_data.factory import create_provider
 from trading_helper.market_data.provider import MarketDataProvider
+from trading_helper.paper import PaperPortfolioService
 from trading_helper.portfolio import PositionMonitor
 from trading_helper.risk.costs import CostEstimate, CostProfile, FeeCalculator
 from trading_helper.risk.manager import check_trade_feasibility, risk_reward_ratio
@@ -41,6 +43,15 @@ class TradingHelperService:
             self.provider,
             self.repository,
             ttl_seconds=min(strategy.scan_interval_seconds, 900),
+        )
+        fx_config = self.raw_config.get("fx", {})
+        self.fx = FxRateService(
+            self.repository,
+            self.provider,
+            strategy.fx_rates_to_portfolio,
+            strategy.portfolio_currency,
+            cache_minutes=int(fx_config.get("cache_minutes", 60)),
+            stale_after_minutes=int(fx_config.get("stale_after_minutes", 1440)),
         )
         profile_data = (
             self.raw_config.get("costs", {}).get("profiles", {}).get(strategy.cost_profile, {})
@@ -149,11 +160,15 @@ class TradingHelperService:
         target_1 = quote.price + risk_per_unit * 2
         target_2 = quote.price + risk_per_unit * 3
         rr = risk_reward_ratio(quote.price, stop, target_2)
-        fx_rate = self.strategy.fx_rates_to_portfolio.get(info.currency)
+        fx = self.fx.get_rate(info.currency, self.strategy.portfolio_currency)
+        fx_rate = fx.rate
         warnings: list[str] = []
-        if fx_rate is None:
-            fx_rate = 1.0
-            warnings.append(f"Missing configured FX rate for {info.currency}")
+        if fx.status == "FALLBACK":
+            warnings.append(
+                f"FX {info.currency}/{self.strategy.portfolio_currency} uses YAML fallback"
+            )
+        elif fx.status == "STALE":
+            warnings.append(f"FX {info.currency}/{self.strategy.portfolio_currency} is stale")
         portfolio_value = float(
             self.runtime_setting("portfolio_value", self.strategy.portfolio_value)
         )
@@ -244,6 +259,9 @@ class TradingHelperService:
                     "costs": costs.__dict__,
                     "currency": info.currency,
                     "fx_rate_to_portfolio": fx_rate,
+                    "fx_rate_source": fx.source,
+                    "fx_rate_status": fx.status,
+                    "fx_rate_timestamp": fx.data_timestamp.isoformat(),
                 }
             ),
         }
@@ -276,7 +294,17 @@ class TradingHelperService:
 
     def monitor_positions(self) -> list[dict[str, Any]]:
         results = self.position_monitor.run()
+        paper = PaperPortfolioService(
+            self.repository,
+            float(self.runtime_setting("portfolio_value", self.strategy.portfolio_value)),
+            self.strategy.portfolio_currency,
+        )
+        account = paper.account()
+        paper_market_value = 0.0
         for result in results:
+            fx = self.fx.get_rate(result["currency"], self.strategy.portfolio_currency)
+            if result["mode"] == "PAPER":
+                paper_market_value += result["current_price"] * result["quantity"] * fx.rate
             if result["monitor_status"] != "HOLD":
                 self.alerts.enqueue(
                     result["monitor_status"],
@@ -288,6 +316,18 @@ class TradingHelperService:
                     ),
                     f"{result['id']}:{result['monitor_status']}:{result['data_timestamp']}",
                 )
+        equity = float(account["cash_balance"]) + paper_market_value
+        self.repository.execute(
+            """INSERT INTO portfolio_snapshots(timestamp,total_value,invested_value,
+            unrealized_pnl,currency) VALUES(?,?,?,?,?)""",
+            (
+                utc_now(),
+                round(equity, 4),
+                round(float(account["initial_cash"]), 4),
+                round(equity - float(account["initial_cash"]), 4),
+                self.strategy.portfolio_currency,
+            ),
+        )
         self.alerts.dispatch_pending()
         return results
 

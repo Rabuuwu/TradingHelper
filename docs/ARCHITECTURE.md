@@ -25,6 +25,11 @@ przechowują osobnych portfeli. PWA może być zamknięta, a scheduler i ntfy na
 - `database.py`: wersjonowany, kompatybilny schemat SQLite.
 - `api.py`, `web/`: kliencka warstwa HTTP/SSE/PWA, bez logiki tradingowej.
 
+Szczegóły sygnału pobierają świece przez chroniony endpoint
+`GET /market/candles/{symbol}`. Backend dodaje EMA20/50/200 i provenance, a klient
+renderuje interaktywny wykres świecowy przez Lightweight Charts 5.2.0. Biblioteka nie
+dostarcza danych ani sygnałów. UI zawiera wymagane wskazanie twórcy TradingView.
+
 Nie istnieje warstwa order execution. Provider danych nie jest brokerem i nie może
 otrzymać metod `buy`, `sell`, `placeOrder`, logowania do brokera ani automatyzacji UI.
 

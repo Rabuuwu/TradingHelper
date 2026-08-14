@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import ipaddress
 import os
 import threading
@@ -60,7 +61,7 @@ def main() -> None:
     for name in ("self-check", "init-db", "api", "run", "scan-once", "worker", "backup"):
         sub.add_parser(name)
     password_parser = sub.add_parser("hash-password")
-    password_parser.add_argument("password")
+    password_parser.add_argument("password", nargs="?")
     args = parser.parse_args()
     settings = load_settings()
     configure_logging(os.getenv("LOG_LEVEL", "INFO"))
@@ -72,7 +73,13 @@ def main() -> None:
         print(f"Database initialized: {Path(settings.database_path)}")
         return
     if args.command == "hash-password":
-        print(hash_password(args.password))
+        password = args.password
+        if password is None:
+            password = getpass.getpass("Password: ")
+            confirmation = getpass.getpass("Repeat password: ")
+            if password != confirmation:
+                raise SystemExit("Passwords do not match")
+        print(hash_password(password))
         return
     if args.command == "backup":
         config = load_strategy_config().get("backup", {})

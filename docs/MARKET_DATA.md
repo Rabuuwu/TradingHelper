@@ -22,6 +22,10 @@ mogą się zmieniać; przed użyciem należy sprawdzić aktualny cennik i dostę
 Pole `MARKET_DATA_DELAY_MINUTES` pozwala jawnie oznaczyć feed jako opóźniony. Nawet przy
 pustym polu aplikacja nadal wykrywa nieaktualność na podstawie czasu ostatniej świecy.
 
+Ten sam adapter dostarcza kursy par walutowych do `FxRateService`. Kurs jest cache'owany
+w tabeli `fx_rates` domyślnie przez 60 minut. API ujawnia kurs, źródło, timestamp i
+status; przy awarii providera system korzysta z jawnie oznaczonego fallbacku YAML.
+
 Nowy provider implementuje kontrakt w `market_data/provider.py`, pobiera sekret wyłącznie
 z `.env` i musi mieć testy z mockiem bez prawdziwych requestów w CI. Broker nie jest
 providerem wymaganym przez system.

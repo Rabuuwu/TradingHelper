@@ -68,6 +68,7 @@ def run_companion() -> None:  # pragma: no cover - native UI is verified manuall
     root.minsize(280, 80)
     status_var = tk.StringVar(value="● CONNECTING")
     top_var = tk.BooleanVar(value=True)
+    login_window: tk.Toplevel | None = None
     root.attributes("-topmost", True)
     ttk.Label(root, textvariable=status_var, font=("sans", 11, "bold")).pack(pady=10)
     content = ttk.Frame(root, padding=10)
@@ -94,6 +95,57 @@ def run_companion() -> None:  # pragma: no cover - native UI is verified manuall
         side="right", padx=5
     )
 
+    def show_login() -> None:
+        nonlocal login_window
+        if login_window is not None and login_window.winfo_exists():
+            login_window.lift()
+            return
+        login_window = tk.Toplevel(root)
+        login_window.title("TradingHelper — logowanie")
+        login_window.geometry("320x230")
+        login_window.resizable(False, False)
+        login_window.transient(root)
+        login_window.grab_set()
+        form = ttk.Frame(login_window, padding=18)
+        form.pack(fill="both", expand=True)
+        ttk.Label(form, text="Nazwa użytkownika").pack(anchor="w")
+        username = ttk.Entry(form)
+        username.insert(0, os.getenv("TRADING_HELPER_USERNAME", "trader"))
+        username.pack(fill="x", pady=(3, 12))
+        ttk.Label(form, text="Hasło").pack(anchor="w")
+        password = ttk.Entry(form, show="•")
+        password.pack(fill="x", pady=(3, 12))
+        error_var = tk.StringVar()
+        ttk.Label(form, textvariable=error_var, foreground="#a83232").pack(anchor="w")
+        submit = ttk.Button(form, text="Zaloguj")
+        submit.pack(anchor="e", pady=(8, 0))
+
+        def finish_login(success: bool) -> None:
+            submit.state(["!disabled"])
+            if success:
+                login_window.destroy()
+                start_poll()
+            else:
+                error_var.set("Nieprawidłowe dane lub brak połączenia z serwerem.")
+                password.delete(0, "end")
+                password.focus_set()
+
+        def perform_login() -> None:
+            success = client.login(username.get().strip(), password.get())
+            root.after(0, finish_login, success)
+
+        def submit_login(_event: object | None = None) -> None:
+            if not username.get().strip() or not password.get():
+                error_var.set("Podaj nazwę użytkownika i hasło.")
+                return
+            error_var.set("")
+            submit.state(["disabled"])
+            threading.Thread(target=perform_login, daemon=True).start()
+
+        submit.configure(command=submit_login)
+        password.bind("<Return>", submit_login)
+        username.focus_set()
+
     def render(state: CompanionState) -> None:
         status_var.set(f"● {state.connection} · {state.status.get('provider', '—').upper()}")
         for widget in content.winfo_children():
@@ -114,11 +166,15 @@ def run_companion() -> None:  # pragma: no cover - native UI is verified manuall
             ttk.Label(
                 content, text=f"{item['symbol']}  {item['quantity']} @ {item['entry_price']}"
             ).pack(anchor="w", pady=2)
+        if state.connection == "AUTH_ERROR":
+            ttk.Label(content, text="Zaloguj się do centralnego serwera.").pack(pady=12)
+            ttk.Button(content, text="Zaloguj", command=show_login).pack()
 
     def poll() -> None:
         state = client.snapshot()
         root.after(0, render, state)
-        root.after(30_000 if state.connection == "ONLINE" else 5_000, start_poll)
+        delay = 30_000 if state.connection == "ONLINE" else 10_000
+        root.after(delay, start_poll)
 
     def start_poll() -> None:
         threading.Thread(target=poll, daemon=True).start()
