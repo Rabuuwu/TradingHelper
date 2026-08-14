@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from trading_helper.database import Repository
@@ -15,6 +16,14 @@ class CountingProvider(SampleMarketDataProvider):
         return super().get_candles(*args, **kwargs)
 
 
+class OtherCountingProvider(CountingProvider):
+    name = "other"
+
+    def get_candles(self, *args, **kwargs):
+        batch = super().get_candles(*args, **kwargs)
+        return replace(batch, provenance=replace(batch.provenance, source=self.name))
+
+
 def test_sample_provider_is_deterministic() -> None:
     provider = SampleMarketDataProvider(now=datetime(2026, 1, 1, tzinfo=UTC))
     first = provider.get_candles("AAPL", "1h", limit=220)
@@ -30,3 +39,14 @@ def test_market_data_cache_avoids_duplicate_fetch(tmp_path) -> None:
     cache.get_candles("AAPL", "1h", 220)
     cache.get_candles("AAPL", "1h", 220)
     assert provider.calls == 1
+
+
+def test_market_data_cache_never_reuses_another_provider_source(tmp_path) -> None:
+    repository = Repository(str(tmp_path / "cache.db"))
+    sample = CountingProvider()
+    CachedMarketData(sample, repository).get_candles("AAPL", "1h", 220)
+    other = OtherCountingProvider()
+    batch = CachedMarketData(other, repository).get_candles("AAPL", "1h", 220)
+    assert other.calls == 1
+    assert batch.provenance.source == "other"
+    assert len(repository.cached_candles("AAPL", "1h", 220, "other")) == 220

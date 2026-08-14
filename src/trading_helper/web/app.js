@@ -57,8 +57,10 @@ let language='pl';const tr=key=>translations[language]?.[key]||translations.en[k
 const statusLabel=value=>tr(value)||value;function applyLanguage(){document.documentElement.lang=language;
 document.querySelectorAll('[data-i18n]').forEach(el=>{el.textContent=tr(el.dataset.i18n)})}
 async function loadStatus(){try{const s=await api('/status');$('#statusButton').innerHTML=`<span class="dot"></span>
-ONLINE · ${s.provider.toUpperCase()}`;$('#healthPanel').innerHTML=`<b>Serwer:</b> ONLINE &nbsp; <b>Rynek:</b>
-${statusLabel(s.market)} &nbsp; <b>Skaner:</b> ${statusLabel(s.scheduler)} &nbsp; <b>Dane:</b> ${statusLabel(s.data_status)}`;
+ONLINE · ${s.provider.toUpperCase()}`;const credits=s.provider_credits;
+$('#healthPanel').innerHTML=`<b>Serwer:</b> ONLINE &nbsp; <b>Rynek:</b>
+${statusLabel(s.market)} &nbsp; <b>Skaner:</b> ${statusLabel(s.scheduler)} &nbsp; <b>Dane:</b> ${statusLabel(s.data_status)}
+${credits?` &nbsp; <b>API:</b> ${credits.used_today}/${credits.background_limit} · rezerwa ${credits.reserved}`:''}`;
 $('#offline').classList.add('hidden')}catch(e){
 $('#statusButton').textContent='● OFFLINE';$('#offline').classList.remove('hidden')}}
 async function loadSignals(){const rows=await api('/signals?min_score=40&limit=30');$('#signals').innerHTML=rows.map(s=>
@@ -89,7 +91,7 @@ volume.setData(data.candles.map(x=>({time:x.time,value:x.volume,color:x.close>=x
 [signal.target_price_2,'TP2','#15803d']].forEach(([price,title,color])=>{if(price)candles.createPriceLine({price,color,
 lineWidth:1,lineStyle:2,axisLabelVisible:true,title})});chart.timeScale().fitContent();
 chartObserver=new ResizeObserver(entries=>chart.applyOptions({width:entries[0].contentRect.width}));chartObserver.observe(target);
-$('#chartMeta').textContent=`${data.source} · ${data.timeframe} · ${new Date(data.data_timestamp).toLocaleString()}${data.is_delayed?' · DELAYED':''}`}
+$('#chartMeta').textContent=`${data.source} · ${data.timeframe} · ${data.candles.length} świec · ${new Date(data.data_timestamp).toLocaleString()}${data.is_delayed?' · DELAYED':''} · plan: ${signal.timeframe}`}
 async function showSignal(symbol){const s=await api(`/signals/${symbol}`),b=s.breakdown||{},d=s.details||{},i=d.indicators||{};
 $('#signalDetails').innerHTML=`<div class="signal-head"><div><h2>${esc(s.symbol)} <small>${esc(s.name)}</small></h2>
 <span class="pill">${esc(statusLabel(s.label))}</span></div><div class="score">${s.score}<small>/100</small></div></div>

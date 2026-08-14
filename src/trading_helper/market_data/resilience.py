@@ -5,7 +5,11 @@ import time
 from collections.abc import Callable
 from typing import TypeVar
 
-from trading_helper.market_data.provider import ProviderError, ProviderTimeout
+from trading_helper.market_data.provider import (
+    ProviderError,
+    ProviderRateLimited,
+    ProviderTimeout,
+)
 
 T = TypeVar("T")
 
@@ -35,6 +39,8 @@ def with_retry(
     for attempt in range(attempts):
         try:
             return operation()
+        except ProviderRateLimited:
+            raise
         except (ProviderError, TimeoutError) as exc:
             last_error = exc
             if attempt + 1 < attempts:

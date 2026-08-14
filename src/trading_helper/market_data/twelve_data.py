@@ -3,10 +3,12 @@ from __future__ import annotations
 import time
 from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
 
+from trading_helper.market_data.credits import ApiCreditBudget
 from trading_helper.market_data.models import (
     CandleBatch,
     DataProvenance,
@@ -38,6 +40,7 @@ class TwelveDataProvider(MarketDataProvider):
         delay_minutes: int | None = None,
         session: requests.Session | None = None,
         requests_per_minute: int = 8,
+        credit_budget: ApiCreditBudget | None = None,
     ) -> None:
         if not api_key.strip():
             raise ProviderError("MARKET_DATA_API_KEY is required for twelve_data")
@@ -46,12 +49,16 @@ class TwelveDataProvider(MarketDataProvider):
         self.delay_minutes = delay_minutes
         self.session = session or requests.Session()
         self.rate_limiter = RateLimiter(requests_per_minute)
+        self.credit_budget = credit_budget
         self._quotes: dict[str, Quote] = {}
+        self._quote_cached_at: dict[str, float] = {}
         self._info: dict[str, SymbolInfo] = {}
         self._market_status: tuple[float, MarketStatus] | None = None
 
     def _get(self, endpoint: str, **params: Any) -> Any:
         self.rate_limiter.wait()
+        if self.credit_budget:
+            self.credit_budget.consume(endpoint)
         try:
             response = self.session.get(
                 f"{self.base_url}/{endpoint}",
@@ -132,6 +139,7 @@ class TwelveDataProvider(MarketDataProvider):
         self._quotes[normalized] = Quote(
             normalized, float(frame["close"].iloc[-1]), currency, provenance
         )
+        self._quote_cached_at[normalized] = time.monotonic()
         self._info[normalized] = SymbolInfo(
             normalized,
             str(meta.get("symbol") or normalized),
@@ -144,7 +152,10 @@ class TwelveDataProvider(MarketDataProvider):
 
     def get_quote(self, symbol: str) -> Quote:
         normalized = symbol.upper()
-        if normalized in self._quotes:
+        if (
+            normalized in self._quotes
+            and time.monotonic() - self._quote_cached_at.get(normalized, 0) < 60
+        ):
             return self._quotes[normalized]
         payload = self._get("quote", symbol=normalized)
         price = payload.get("close") or payload.get("price")
@@ -161,6 +172,7 @@ class TwelveDataProvider(MarketDataProvider):
             self._provenance(timestamp),
         )
         self._quotes[normalized] = quote
+        self._quote_cached_at[normalized] = time.monotonic()
         return quote
 
     def get_symbol_info(self, symbol: str) -> SymbolInfo:
@@ -194,18 +206,15 @@ class TwelveDataProvider(MarketDataProvider):
 
     def get_market_status(self) -> MarketStatus:
         now = datetime.now(UTC)
-        if self._market_status and time.monotonic() - self._market_status[0] < 300:
-            return self._market_status[1]
-        payload = self._get("market_state", country="United States")
-        rows = payload if isinstance(payload, list) else payload.get("data") or []
-        status = str(rows[0].get("is_market_open", "UNKNOWN")) if rows else "UNKNOWN"
+        eastern = now.astimezone(ZoneInfo("America/New_York"))
+        open_now = (
+            eastern.weekday() < 5
+            and (eastern.hour, eastern.minute) >= (9, 30)
+            and (eastern.hour, eastern.minute) < (16, 0)
+        )
         result = MarketStatus(
             "UNITED_STATES",
-            "OPEN"
-            if status.lower() == "true"
-            else "CLOSED"
-            if status.lower() == "false"
-            else status.upper(),
+            "OPEN" if open_now else "CLOSED",
             now,
         )
         self._market_status = (time.monotonic(), result)

@@ -40,7 +40,15 @@ class TradingHelperService:
         self.strategy = strategy
         self.raw_config = raw_config or load_strategy_config()
         self.repository = Repository(settings.database_path)
-        self.provider = provider or create_provider(settings)
+        self.provider = provider or create_provider(settings, self.repository)
+        if self.provider.name != "sample":
+            purged = self.repository.purge_market_cache_except(self.provider.name)
+            if purged["candles"] or purged["quotes"]:
+                self.repository.event(
+                    "market_cache_provider_cleanup",
+                    "Removed cache rows belonging to a different market data provider",
+                    details=purged,
+                )
         self.market_data = CachedMarketData(
             self.provider,
             self.repository,
@@ -81,6 +89,10 @@ class TradingHelperService:
             return json.loads(rows[0]["value"])
         except (TypeError, json.JSONDecodeError):
             return default
+
+    def provider_credit_status(self) -> dict[str, Any] | None:
+        budget = getattr(self.provider, "credit_budget", None)
+        return budget.status() if budget else None
 
     def self_check(self) -> list[str]:
         warnings: list[str] = []
@@ -384,7 +396,15 @@ class TradingHelperService:
         signal.signal(signal.SIGINT, stop_handler)
         self.repository.event("server_started", "TradingHelper scheduler started")
         next_scan = next_monitor = next_watchdog = 0.0
-        last_daily_scan = ""
+        daily_state = self.repository.rows(
+            "SELECT value FROM system_state WHERE key='last_daily_scan'"
+        )
+        last_daily_scan = (
+            datetime.fromisoformat(daily_state[0]["value"]).date().isoformat()
+            if daily_state
+            else ""
+        )
+        last_closed_monitor = ""
         try:
             while not self.stop_event.is_set():
                 now = datetime.now(UTC).timestamp()
@@ -394,14 +414,14 @@ class TradingHelperService:
                         "scan_interval_seconds", self.strategy.scan_interval_seconds
                     )
                 )
+                if self.provider.name == "twelve_data":
+                    scan_interval = max(scan_interval, 3600)
                 utc_now_value = datetime.now(UTC)
                 daily_key = utc_now_value.date().isoformat()
-                if scanner_enabled and now >= next_scan:
+                market_open = self.provider.get_market_status().status == "OPEN"
+                if scanner_enabled and market_open and now >= next_scan:
                     try:
                         self.scan_once()
-                        if utc_now_value.hour >= self.strategy.daily_scan_hour_utc:
-                            last_daily_scan = daily_key
-                            self.repository.set_state("last_daily_scan", utc_now())
                     except Exception as exc:
                         logger.exception("Scheduled scan failed")
                         self.repository.set_state("scanner", f"ERROR: {exc}")
@@ -409,6 +429,8 @@ class TradingHelperService:
                     next_scan = now + scan_interval
                 if (
                     scanner_enabled
+                    and not market_open
+                    and utc_now_value.weekday() < 5
                     and utc_now_value.hour >= self.strategy.daily_scan_hour_utc
                     and last_daily_scan != daily_key
                 ):
@@ -419,9 +441,20 @@ class TradingHelperService:
                     except Exception as exc:
                         logger.exception("Daily scan failed")
                         self.repository.event("daily_scan_failed", str(exc), "ERROR")
-                if now >= next_monitor:
+                if not market_open and scanner_enabled:
+                    self.repository.set_state("scanner", "IDLE_MARKET_CLOSED")
+                monitor_due = market_open and now >= next_monitor
+                closed_monitor_due = (
+                    not market_open
+                    and utc_now_value.weekday() < 5
+                    and utc_now_value.hour >= self.strategy.daily_scan_hour_utc
+                    and last_closed_monitor != daily_key
+                )
+                if monitor_due or closed_monitor_due:
                     try:
                         self.monitor_positions()
+                        if closed_monitor_due:
+                            last_closed_monitor = daily_key
                     except Exception as exc:
                         logger.exception("Position monitor failed")
                         self.repository.set_state("position_monitor", f"ERROR: {exc}")

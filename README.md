@@ -11,6 +11,7 @@ do ręcznego wykonania decyzji użytkownika.
 ## Co działa
 
 - neutralny `MarketDataProvider` z provenance, retry, rate-limit-ready API i SQLite cache,
+- trwały budżet Twelve Data (7/min, 720 kredytów tła + rezerwa 80 z limitu 800),
 - offline `SampleMarketDataProvider`, dzięki któremu start nie wymaga brokera ani internetu,
 - multi-timeframe: trend 1D i setup 1H (konfigurowalne),
 - EMA20/50/200, RSI, MACD, ATR, Bollinger Bands, relative volume, OBV i ROC,
@@ -57,6 +58,7 @@ scheduler i web UI. Zamknięcie przeglądarki nie zatrzymuje analiz ani ntfy.
 - `POST /paper/buy`, `POST /paper/sell` (wyłącznie lokalna symulacja)
 - `GET /soak/status`, `GET /signals/{symbol}/history`
 - `GET /market/candles/{symbol}`
+- `GET /market/credits` — dzienne wykorzystanie budżetu per endpoint
 - `GET|POST|PUT /trades`
 - `GET /scanner/status`, `POST /scanner/run`
 - `GET|PUT /settings/public`

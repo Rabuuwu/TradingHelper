@@ -241,6 +241,7 @@ def ready(response: Response) -> dict[str, Any]:
         "status": "degraded" if degraded else "ready",
         "database": "ok",
         "provider": service().provider.name,
+        "provider_credits": service().provider_credit_status(),
         "watchdog": watchdog_state,
     }
 
@@ -296,6 +297,7 @@ def status() -> dict[str, Any]:
         "market": market.status,
         "data_status": data_status,
         "provider": service().provider.name,
+        "provider_credits": service().provider_credit_status(),
         "database": "OK",
         "scheduler": next(
             (item["value"] for item in state if item["key"] == "scheduler"), "NOT_STARTED"
@@ -312,6 +314,14 @@ def status() -> dict[str, Any]:
 @app.get("/soak/status", dependencies=[Depends(require_auth)])
 def soak_status() -> dict[str, Any]:
     return SoakMonitor(repository()).report()
+
+
+@app.get("/market/credits", dependencies=[Depends(require_auth)])
+def market_credits() -> dict[str, Any]:
+    return service().provider_credit_status() or {
+        "provider": service().provider.name,
+        "metered": False,
+    }
 
 
 @app.get("/signals", dependencies=[Depends(require_auth)])
