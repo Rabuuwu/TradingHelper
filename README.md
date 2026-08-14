@@ -18,6 +18,7 @@ do ręcznego wykonania decyzji użytkownika.
 - entry zone, SL, TP1/TP2, R:R, fractional sizing i trade feasibility dla kapitału 100 PLN,
 - konfigurowalne profile kosztów XTB/IBKR/custom (profile nie są integracjami),
 - ręczne portfolio, paper/simulation positions, trailing ATR i trade journal,
+- atomowy ledger PAPER, trwałe sesje, ochrona brute-force i retencja historii sygnałów,
 - SQLite, outbox alertów ntfy z retry, event log, scheduler, watchdog-ready status i backup,
 - FastAPI, SSE live updates, responsywny dashboard instalowalny jako PWA,
 - opcjonalne single-user auth bcrypt + HttpOnly cookie,
@@ -39,6 +40,7 @@ ruff check src tests
 python -m trading_helper.main self-check
 python -m trading_helper.main init-db
 python -m trading_helper.main scan-once
+python -m trading_helper.main paper-soak --cycles 1000
 python -m trading_helper.main run
 ```
 
@@ -53,6 +55,7 @@ scheduler i web UI. Zamknięcie przeglądarki nie zatrzymuje analiz ani ntfy.
 - `GET|POST|PUT|DELETE /portfolio`
 - `GET /portfolio/history`, `GET|PUT /paper/account`
 - `POST /paper/buy`, `POST /paper/sell` (wyłącznie lokalna symulacja)
+- `GET /soak/status`, `GET /signals/{symbol}/history`
 - `GET /market/candles/{symbol}`
 - `GET|POST|PUT /trades`
 - `GET /scanner/status`, `POST /scanner/run`

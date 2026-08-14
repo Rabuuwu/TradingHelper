@@ -22,6 +22,8 @@ from trading_helper.risk.costs import CostEstimate, CostProfile, FeeCalculator
 from trading_helper.risk.manager import check_trade_feasibility, risk_reward_ratio
 from trading_helper.scanner.scanners import build_snapshot
 from trading_helper.signal_engine import score_setup, snapshot_details
+from trading_helper.signals import SignalQueryService
+from trading_helper.soak import SoakMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +89,9 @@ class TradingHelperService:
         if self.settings.ntfy_enabled and not self.settings.ntfy_topic:
             warnings.append("ntfy is enabled but NTFY_TOPIC is empty")
         if self.settings.auth_enabled and (
-            not self.settings.auth_username or not self.settings.auth_password_hash
+            not self.settings.auth_username
+            or not self.settings.auth_password_hash
+            or not self.settings.session_secret
         ):
             warnings.append("Authentication is enabled but credentials are incomplete")
         return warnings
@@ -118,6 +122,11 @@ class TradingHelperService:
             details={"ok": succeeded, "failed": failed},
         )
         self.alerts.dispatch_pending()
+        deleted = SignalQueryService(self.repository).prune(self.strategy.signal_retention_days)
+        if deleted:
+            self.repository.event(
+                "signal_history_pruned", f"Removed {deleted} expired signal records"
+            )
         return {"run_id": run_id, "succeeded": succeeded, "failed": failed}
 
     def scan_symbols(self) -> tuple[str, ...]:
@@ -317,14 +326,27 @@ class TradingHelperService:
                     f"{result['id']}:{result['monitor_status']}:{result['data_timestamp']}",
                 )
         equity = float(account["cash_balance"]) + paper_market_value
+        open_cost_rows = self.repository.rows(
+            """SELECT COALESCE(-SUM(l.cash_change),0) AS cost
+            FROM paper_ledger l JOIN manual_positions p ON p.id=l.position_id
+            WHERE l.transaction_type='BUY' AND p.mode='PAPER' AND p.status='OPEN'"""
+        )
+        open_cost = float(open_cost_rows[0]["cost"])
+        unrealized = paper_market_value - open_cost
+        realized = float(account["realized_pnl"])
+        total_pnl = equity - float(account["initial_cash"])
         self.repository.execute(
             """INSERT INTO portfolio_snapshots(timestamp,total_value,invested_value,
-            unrealized_pnl,currency) VALUES(?,?,?,?,?)""",
+            unrealized_pnl,realized_pnl,total_pnl,cash_balance,currency)
+            VALUES(?,?,?,?,?,?,?,?)""",
             (
                 utc_now(),
                 round(equity, 4),
-                round(float(account["initial_cash"]), 4),
-                round(equity - float(account["initial_cash"]), 4),
+                round(paper_market_value, 4),
+                round(unrealized, 4),
+                round(realized, 4),
+                round(total_pnl, 4),
+                round(float(account["cash_balance"]), 4),
                 self.strategy.portfolio_currency,
             ),
         )
@@ -347,8 +369,10 @@ class TradingHelperService:
                 "WARNING",
                 {"age_seconds": int(age)},
             )
+            SoakMonitor(self.repository).record("UNHEALTHY", {"watchdog": "DEGRADED"})
             return "DEGRADED"
         self.repository.set_state("watchdog", "HEALTHY")
+        SoakMonitor(self.repository).record("HEALTHY", {"watchdog": "HEALTHY"})
         return "HEALTHY"
 
     def run_forever(self) -> None:

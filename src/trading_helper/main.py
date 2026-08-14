@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import getpass
 import ipaddress
+import json
 import os
+import tempfile
 import threading
 from pathlib import Path
 
@@ -14,9 +16,10 @@ from trading_helper.api import configure_service
 from trading_helper.auth import hash_password
 from trading_helper.backup import backup_database
 from trading_helper.config import load_settings, load_strategy_config, load_strategy_settings
-from trading_helper.database import init_database
+from trading_helper.database import Repository, init_database
 from trading_helper.logging_config import configure_logging
 from trading_helper.service import TradingHelperService
+from trading_helper.soak import run_accelerated_paper_soak
 
 
 def build_service() -> TradingHelperService:
@@ -60,6 +63,8 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("self-check", "init-db", "api", "run", "scan-once", "worker", "backup"):
         sub.add_parser(name)
+    soak_parser = sub.add_parser("paper-soak")
+    soak_parser.add_argument("--cycles", type=int, default=1000)
     password_parser = sub.add_parser("hash-password")
     password_parser.add_argument("password", nargs="?")
     args = parser.parse_args()
@@ -89,6 +94,15 @@ def main() -> None:
             int(config.get("retention_days", 14)),
         )
         print(f"Backup created: {target}")
+        return
+    if args.command == "paper-soak":
+        with tempfile.TemporaryDirectory(prefix="trading-helper-soak-") as directory:
+            report = run_accelerated_paper_soak(
+                Repository(str(Path(directory) / "soak.sqlite")), args.cycles
+            )
+        print(json.dumps(report, indent=2))
+        if report["status"] != "PASSED":
+            raise SystemExit(1)
         return
     if args.command == "api":
         ensure_safe_bind(settings.app_host, settings.auth_enabled)
