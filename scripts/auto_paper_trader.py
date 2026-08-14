@@ -22,13 +22,15 @@ def main() -> None:
     args = parser.parse_args()
     configure_logging(os.getenv("LOG_LEVEL", "INFO"))
     service = build_service()
-    lock_path = Path(f"{service.settings.database_path}.auto-paper.lock")
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    lock = lock_path.open("w")
-    try:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError as exc:
-        raise SystemExit("Another auto PAPER trader is already running") from exc
+    lock = None
+    if not args.status:
+        lock_path = Path(f"{service.settings.database_path}.auto-paper.lock")
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock = lock_path.open("w")
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise SystemExit("Another auto PAPER trader is already running") from exc
     trader = AutoPaperTrader(
         service,
         AutoPaperConfig(

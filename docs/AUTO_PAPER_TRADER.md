@@ -61,3 +61,13 @@ sudo systemctl status trading-helper-auto-paper
 The normal `trading-helper.service` remains the source of signals and the dashboard.
 Stopping the autonomous PAPER unit does not stop TradingHelper and does not alter its
 recorded balance.
+
+On a host with user lingering enabled, the included user unit avoids sudo and still
+survives logout and reboot:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp deploy/trading-helper-auto-paper-user.service ~/.config/systemd/user/trading-helper-auto-paper.service
+systemctl --user daemon-reload
+systemctl --user enable --now trading-helper-auto-paper
+```
