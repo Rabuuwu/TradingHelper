@@ -1,124 +1,33 @@
-# Checklista projektu
+# Roadmapa
 
-To jest główna checklista, której trzymamy się przy rozwoju. Punkt oznaczamy jako ukończony dopiero po kodzie, testach i krótkiej dokumentacji.
+DONE oznacza kod + testy + dokumentację + działający scenariusz.
 
-## 0. Repo i bezpieczeństwo
-- [x] Utworzyć repozytorium GitHub.
-- [x] Dodać `.gitignore` i `.env.example`.
-- [x] Zdefiniować cele, wymagania i architekturę.
-- [x] Dodać podstawowe testy i CI.
-- [ ] Ustawić repo jako Private.
-- [ ] Włączyć ochronę gałęzi `main` po ustabilizowaniu CI.
+- [x] 0. Repository/security — ignore sekretów, hard rule bez transakcji, historia migracji.
+- [x] 1. Core architecture — centralny backend i rozdzielone warstwy.
+- [x] 2. MarketDataProvider — kontrakt, sample provider, retry i provenance.
+- [x] 3. Market data/cache — SQLite candles/quotes/symbols i indeksy.
+- [x] 4. Indicators — EMA/RSI/MACD/ATR/Bollinger/volume/OBV/ROC z testami.
+- [x] 5. Scanner — multi-timeframe i zunifikowane skanery bazowe.
+- [x] 6. Signal scoring — model 0–100, breakdown/reasons/warnings.
+- [x] 7. Risk Manager — R:R, fractional sizing i limity małego kapitału.
+- [x] 8. Cost model — profile YAML, pełne koszty i feasibility.
+- [x] 9. Manual portfolio — manual i paper positions w SQLite/API.
+- [x] 10. Position monitor — P/L, ATR, trailing i statusy ostrzeżeń.
+- [x] 11. Trailing stop — wirtualny, nigdy automatycznie w dół.
+- [x] 12. Trade journal — OPEN/CLOSED/CANCELLED i statystyki.
+- [x] 13. Notifications — ntfy outbox, retry i deduplikacja per świeca.
+- [x] 14. REST API — wymagane CRUD, health/ready/status, SSE i auth.
+- [x] 15. PWA Dashboard — responsive light mode, details, offline state, live SSE.
+- [x] 16. Backtesting — bazowy engine bez entry lookahead i z kosztami.
+- [x] 17. CI/test coverage — Python 3.11/3.12, lint, testy, coverage >=70%.
+- [ ] 18. Paper simulation — kod/API gotowe; potrzebna pełna sesja walidacyjna.
+- [ ] 19. 14-day soak test — wymaga rzeczywistego upływu 14 dni.
+- [ ] 20. First controlled live test with small capital — dopiero po backteście i soak teście.
 
-## 1. Środowisko Linux
-- [ ] Sklonować repo na Linuxa.
-- [ ] Zainstalować Python 3.11+ i `python3-venv`.
-- [ ] Utworzyć `.venv`.
-- [ ] `pip install -e '.[dev]'`.
-- [ ] Skopiować `.env.example` do `.env`.
-- [ ] Skopiować `settings.example.yaml` do `settings.yaml`.
-- [ ] Uruchomić `make lint`, `make test` i `self-check`.
+## Dalsze prace
 
-## 2. IBKR Paper + TWS API
-- [ ] Konto IBKR aktywne.
-- [ ] Aktywować Paper Trading.
-- [ ] Zainstalować IB Gateway na Linuxie.
-- [ ] Pobrać oficjalne TWS API.
-- [ ] Zainstalować `ibapi` z `source/pythonclient`.
-- [ ] Włączyć socket clients.
-- [ ] Zostawić Read-Only API włączone.
-- [ ] Ustawić localhost-only.
-- [ ] Potwierdzić port Paper (IBG domyślnie 4002).
-- [ ] Test połączenia i reconnectu.
-
-## 3. Portfolio sync
-- [ ] Account summary.
-- [ ] Lista pozycji.
-- [ ] Cache pozycji w SQLite.
-- [ ] Obsługa pustego portfela i disconnectu.
-- [ ] Test integracyjny Paper.
-
-## 4. Dane rynkowe
-- [ ] Rozpoznanie subskrypcji danych.
-- [ ] Jawne LIVE/DELAYED/FROZEN.
-- [ ] Historical bars.
-- [ ] Walidacja brakujących świec.
-- [ ] Cache i kontrola pacing.
-
-## 5. Wskaźniki
-- [x] Fundament EMA/RSI/MACD/ATR/volume ratio.
-- [ ] Testy referencyjne.
-- [ ] Support/resistance.
-- [ ] Breakout detector.
-- [ ] Pullback detector.
-- [ ] Trend regime.
-
-## 6. Scoring
-- [x] Bazowy scoring 0–100.
-- [ ] Pełne wyjaśnienie punktacji.
-- [ ] Kalibracja wag przez backtest.
-- [ ] Progi WATCH/ALERT.
-- [ ] Blokada sygnału przy niekompletnych danych.
-
-## 7. Risk Manager
-- [x] Position sizing.
-- [x] Bazowe R:R.
-- [ ] Limit pojedynczej pozycji.
-- [ ] Limit ekspozycji portfela i sektorowy.
-- [ ] Dzienne ryzyko/strata.
-- [ ] Waluta rachunku i FX conversion.
-
-## 8. Trailing stop / exit helper
-- [x] Bazowy trailing ATR.
-- [ ] Break-even rules.
-- [ ] Partial TP suggestions.
-- [ ] Exit score.
-- [ ] Alert naruszenia trailing stop.
-- [ ] Deduplikacja alertów.
-
-## 9. ntfy
-- [x] Klient ntfy.
-- [ ] Prywatny losowy topic.
-- [ ] Test PUSH.
-- [ ] Alert BUY/WATCH/risk/exit/trailing/health.
-
-## 10. SQLite i historia
-- [x] Schemat początkowy.
-- [ ] Warstwa repository.
-- [ ] Migracje.
-- [ ] Retencja i eksport CSV.
-
-## 11. Lokalne API i panel
-- [x] `/health` i `/status`.
-- [ ] `/portfolio`, `/opportunities`, `/signals`, `/history`.
-- [ ] Dashboard light mode.
-- [ ] Widok szczegółów setupu.
-- [ ] Responsywny widok telefonu.
-
-## 12. Backtesting
-- [ ] Silnik backtestu.
-- [ ] Koszty/prowizje/slippage.
-- [ ] Walk-forward split.
-- [ ] Win rate, profit factor, expectancy, max drawdown.
-- [ ] Raport strategii.
-
-## 13. CI / jakość
-- [x] pytest.
-- [x] Ruff.
-- [x] GitHub Actions.
-- [ ] Coverage >= 80% dla logiki domenowej.
-- [ ] Integracyjne markerem `integration`.
-- [ ] Pre-commit hooks.
-
-## 14. Paper soak test
-- [ ] Minimum 14 dni ciągłego działania.
-- [ ] Zero nieobsłużonych crashy.
-- [ ] Analiza alertów i opóźnień danych.
-- [ ] Raport z testu.
-
-## 15. Gotowość do realnego kapitału
-- [ ] Wszystkie krytyczne testy zielone.
-- [ ] Strategia ma zaakceptowany backtest + paper test.
-- [ ] Ustalony maksymalny risk/trade.
-- [ ] Backup SQLite i monitoring.
-- [ ] Nadal brak automatycznych zleceń.
+- rzeczywisty provider danych z testami kontraktowymi i dokumentacją limitów,
+- kalibracja strategii walk-forward, FX provider i session calendar,
+- trwałe sesje/auth rate limiting oraz HTTPS reverse proxy,
+- opcjonalny desktop companion/tray po ustabilizowaniu API,
+- automatyczny raport soak/watchdog i coverage docelowo >=80%.

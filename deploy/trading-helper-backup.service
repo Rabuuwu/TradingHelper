@@ -1,0 +1,11 @@
+[Unit]
+Description=Backup TradingHelper SQLite database
+
+[Service]
+Type=oneshot
+User=tradinghelper
+Group=tradinghelper
+WorkingDirectory=/opt/trading-helper
+EnvironmentFile=/opt/trading-helper/.env
+ExecStart=/opt/trading-helper/.venv/bin/python -m trading_helper.main backup
+NoNewPrivileges=true

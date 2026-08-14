@@ -22,6 +22,7 @@ config/settings.yaml
 data/*.db
 data/*.sqlite
 data/*.sqlite3
+data/backups/
 logs/
 *.log
 

@@ -1,25 +1,15 @@
 # Bezpieczeństwo
 
-## Sekrety
+Twarda zasada: TradingHelper nie wykonuje transakcji. Nie ma loginu brokera, API XTB,
+scrapingu, klikania, `placeOrder`, auto-buy ani auto-sell.
 
-Do GitHub nie trafiają hasła IBKR, tokeny, prywatne topic ntfy, `.env`, lokalne bazy danych ani logi zawierające dane rachunku.
+Sekrety providera, ntfy, hash hasła i session secret są tylko w `.env`. Public settings
+nie zwracają sekretów. Hasło jest weryfikowane bcrypt; sesja używa losowego tokenu w
+HttpOnly/SameSite cookie, `Secure` pod HTTPS. Sesje w pamięci wygasają po 24 godzinach.
 
-## IBKR
+Domyślnie API słucha na `127.0.0.1`. Rekomendowany remote access to Tailscale. Przy
+nasłuchu na prywatnym interfejsie włącz auth. Dostęp publiczny wymaga reverse proxy,
+HTTPS, firewall/rate limiting i osobnego przeglądu bezpieczeństwa.
 
-V1 używa połączenia read-only. W ustawieniach TWS/IB Gateway pozostawiamy Read-Only API. Kod V1 nie implementuje wykonywania zleceń.
-
-## Sieć
-
-FastAPI domyślnie nasłuchuje tylko na `127.0.0.1`. Dostęp z telefonu/poza domem będziemy realizować dopiero przez kontrolowany mechanizm, a nie przez przypadkowe wystawienie portu do internetu.
-
-## Powiadomienia
-
-Topic ntfy traktujemy jak sekret, jeśli korzystamy z publicznego serwera. Używamy długiej losowej nazwy lub później self-hosted ntfy z uwierzytelnianiem.
-
-## Logowanie
-
-Nie logujemy pełnych danych uwierzytelniających. API logów IBKR nie publikujemy bez anonimizacji.
-
-## Dependency policy
-
-Oficjalne TWS API pobieramy z IBKR; nie zastępujemy go losowym wrapperem tylko dlatego, że jest łatwiejszy do zainstalowania.
+PWA nie cache'uje endpointów sygnałów/statusu i pokazuje SERVER OFFLINE. Każdy sygnał
+ujawnia provider, timestamp i delayed/stale warnings.

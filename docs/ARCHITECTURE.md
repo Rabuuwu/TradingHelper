@@ -1,55 +1,31 @@
 # Architektura
 
-## Przepływ
-
 ```text
-IB Gateway / TWS
-      │
-      │ TWS API socket
-      ▼
-IBKR Adapter ───────► Portfolio Cache
-      │                    │
-      ▼                    ▼
-Market Data ──► Scanner ─► Signal Engine
-                  │             │
-                  ▼             ▼
-              Indicators    Risk Manager
-                  │             │
-                  └──────┬──────┘
-                         ▼
-                  Decision Snapshot
-                    │          │
-                    ▼          ▼
-                  SQLite      ntfy
-                    │
-                    ▼
-               FastAPI / UI
+MarketDataProvider -> SQLite cache -> indicators -> scanners -> signal engine
+                                               |          |
+                                               |          +-> risk/cost/feasibility
+                                               +-> manual portfolio monitor
+                                                          |
+SQLite (source of truth) <- scheduler <- alerts/ntfy <- events
+          |
+FastAPI + SSE + PWA  <---- Tailscale/HTTPS ----> browser/phone/optional client
 ```
 
-## Granice modułów
+Backend Linux jest jedynym source of truth. Klienci nie uruchamiają skanera i nie
+przechowują osobnych portfeli. PWA może być zamknięta, a scheduler i ntfy nadal działają.
 
-### `ibkr/`
-Jedyny moduł znający szczegóły TWS API. Nie może zawierać logiki scoringu ani strategii. V1 jest read-only.
+## Granice
 
-### `scanner/`
-Czysta logika analityczna. Przyjmuje DataFrame OHLCV i zwraca wynik. Dzięki temu można użyć tego samego kodu w live scannerze i backteście.
+- `market_data/`: kontrakt, modele provenance, provider, cache, retry; nie zna strategii.
+- `scanner/`: czysta matematyka pandas/numpy; brak sieci, bazy i powiadomień.
+- `signal_engine.py`: deterministyczne punkty, klasyfikacja i wyjaśnienia.
+- `risk/`: sizing, R:R, koszty i feasibility; brak brokera.
+- `portfolio.py`, `journal.py`: pozycje wpisane przez użytkownika lub paper mode.
+- `service.py`: orkiestracja skanów, monitora i scheduler 24/7.
+- `database.py`: wersjonowany, kompatybilny schemat SQLite.
+- `api.py`, `web/`: kliencka warstwa HTTP/SSE/PWA, bez logiki tradingowej.
 
-### `risk/`
-Wylicza wielkość pozycji i ryzyko. Nie pobiera danych z sieci.
+Nie istnieje warstwa order execution. Provider danych nie jest brokerem i nie może
+otrzymać metod `buy`, `sell`, `placeOrder`, logowania do brokera ani automatyzacji UI.
 
-### `alerts/`
-Adapter ntfy. Otrzymuje gotową wiadomość/zdarzenie i je publikuje.
-
-### `database.py`
-Persistence SQLite. Kod strategii nie powinien pisać SQL bezpośrednio.
-
-### `api.py`
-Warstwa prezentacji. Nie zawiera strategii.
-
-## Zasada read-only
-
-W V1 nie istnieje warstwa order execution. Jeżeli kiedyś powstanie, ma być oddzielnym modułem z osobną flagą feature, osobnymi testami i osobnym przeglądem bezpieczeństwa.
-
-## Procesy
-
-Pierwsza wersja może działać jako jeden proces Python. W przyszłości można rozdzielić collector/synchronizer, scanner, API/dashboard i scheduler. Na pojedynczym komputerze i SQLite monolit modularny jest prostszy i wystarczający.
+Historyczny adapter IBKR usunięto z runtime; opis migracji jest w `docs/archive/`.

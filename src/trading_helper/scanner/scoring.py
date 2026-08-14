@@ -14,6 +14,8 @@ class TechnicalSnapshot:
     macd_signal: float
     macd_histogram: float
     volume_ratio: float
+    breakout: bool = False
+    pullback: bool = False
 
 
 @dataclass(frozen=True)
@@ -66,6 +68,12 @@ def score_snapshot(snapshot: TechnicalSnapshot) -> ScoreResult:
     elif snapshot.volume_ratio >= 1.1:
         score += 8
         reasons.append("positive_relative_volume")
+    if snapshot.breakout:
+        score += 20
+        reasons.append("breakout_above_20_bar_high")
+    elif snapshot.pullback:
+        score += 12
+        reasons.append("pullback_to_ema20")
 
     score = min(score, 100)
     return ScoreResult(score=score, label=label_for_score(score), reasons=tuple(reasons))

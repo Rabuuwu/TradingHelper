@@ -1,0 +1,23 @@
+[Unit]
+Description=TradingHelper broker-independent server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tradinghelper
+Group=tradinghelper
+WorkingDirectory=/opt/trading-helper
+EnvironmentFile=/opt/trading-helper/.env
+ExecStart=/opt/trading-helper/.venv/bin/python -m trading_helper.main run
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/trading-helper/data
+
+[Install]
+WantedBy=multi-user.target
