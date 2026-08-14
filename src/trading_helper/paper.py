@@ -21,6 +21,9 @@ class PaperBuy:
     target_price_2: float | None = None
     signal_id: int | None = None
     signal_score: int | None = None
+    entry_date: str | None = None
+    strategy: str = ""
+    notes: str = ""
 
 
 class PaperPortfolioService:
@@ -64,8 +67,9 @@ class PaperPortfolioService:
         total = gross + order.fees_account_currency
         symbol = order.symbol.upper()
         currency = order.instrument_currency.upper()
-        entered_at = datetime.now(UTC).isoformat()
-        notes = f"Paper buy from signal {order.signal_id}" if order.signal_id else "Paper buy"
+        entered_at = order.entry_date or datetime.now(UTC).isoformat()
+        origin = f"Paper buy from signal {order.signal_id}" if order.signal_id else "Paper buy"
+        notes = f"{origin}. {order.notes.strip()}" if order.notes.strip() else origin
         with self.repository.transaction() as connection:
             account = connection.execute(
                 "SELECT cash_balance FROM paper_accounts WHERE id=1"
@@ -97,8 +101,8 @@ class PaperPortfolioService:
             position_id = int(cursor.lastrowid)
             connection.execute(
                 """INSERT INTO trades(position_id,symbol,broker,status,entry_date,entry_price,
-                quantity,currency,fees,signal_score_at_entry,notes)
-                VALUES(?,?,?,'OPEN',?,?,?,?,?,?,?)""",
+                quantity,currency,fees,strategy,signal_score_at_entry,notes)
+                VALUES(?,?,?,'OPEN',?,?,?,?,?,?,?,?)""",
                 (
                     position_id,
                     symbol,
@@ -108,6 +112,7 @@ class PaperPortfolioService:
                     order.quantity,
                     currency,
                     order.fees_account_currency / order.account_fx_rate,
+                    order.strategy.strip(),
                     order.signal_score,
                     notes,
                 ),

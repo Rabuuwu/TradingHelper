@@ -118,6 +118,13 @@ class PaperBuyInput(BaseModel):
     signal_id: int | None = None
     price: float | None = Field(default=None, gt=0)
     quantity: float | None = Field(default=None, gt=0)
+    currency: str | None = Field(default=None, min_length=3, max_length=3)
+    entry_date: datetime | None = None
+    stop_price: float | None = Field(default=None, gt=0)
+    target_price: float | None = Field(default=None, gt=0)
+    target_price_2: float | None = Field(default=None, gt=0)
+    strategy: str = Field(default="", max_length=100)
+    notes: str = Field(default="", max_length=1000)
 
 
 class PaperSellInput(BaseModel):
@@ -508,11 +515,24 @@ def paper_buy(data: PaperBuyInput) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="Signal not found for paper buy")
     signal = rows[0]
     details = json.loads(signal.get("details_json") or "{}")
-    currency = str(details.get("currency") or "USD").upper()
+    currency = str(data.currency or details.get("currency") or "USD").upper()
+    if len(currency) != 3 or not currency.isalpha():
+        raise HTTPException(status_code=422, detail="Currency must be a 3-letter code")
     price = data.price or (float(signal["entry_low"]) + float(signal["entry_high"])) / 2
     quantity = data.quantity or float(signal["recommended_quantity"] or 0)
     if quantity <= 0:
         raise HTTPException(status_code=422, detail="Signal has no feasible paper quantity")
+    stop_price = data.stop_price if data.stop_price is not None else signal["stop_price"]
+    target_price = data.target_price if data.target_price is not None else signal["target_price"]
+    target_price_2 = (
+        data.target_price_2 if data.target_price_2 is not None else signal["target_price_2"]
+    )
+    if stop_price is not None and stop_price >= price:
+        raise HTTPException(status_code=422, detail="Stop price must be below entry price")
+    if target_price is not None and target_price <= price:
+        raise HTTPException(status_code=422, detail="Target price must be above entry price")
+    if target_price_2 is not None and target_price_2 <= price:
+        raise HTTPException(status_code=422, detail="Target price 2 must be above entry price")
     strategy = load_strategy_settings()
     fx = service().fx.get_rate(currency, strategy.portfolio_currency)
     fees = _paper_fee(price * quantity, "BUY", currency != strategy.portfolio_currency) * fx.rate
@@ -525,11 +545,14 @@ def paper_buy(data: PaperBuyInput) -> dict[str, Any]:
                 currency,
                 fx.rate,
                 fees,
-                signal["stop_price"],
-                signal["target_price"],
-                signal["target_price_2"],
+                stop_price,
+                target_price,
+                target_price_2,
                 signal["id"],
                 signal["score"],
+                data.entry_date.isoformat() if data.entry_date else None,
+                data.strategy,
+                data.notes,
             )
         )
     except ValueError as exc:
@@ -537,7 +560,14 @@ def paper_buy(data: PaperBuyInput) -> dict[str, Any]:
     repository().event(
         "paper_buy", f"Paper buy {symbol}", details={"position_id": position_id}
     )
-    return {"position_id": position_id, "price": price, "quantity": quantity, "fees": fees}
+    return {
+        "position_id": position_id,
+        "price": price,
+        "quantity": quantity,
+        "currency": currency,
+        "fees": fees,
+        "total_account_currency": round(price * quantity * fx.rate + fees, 4),
+    }
 
 
 @app.post("/paper/sell", dependencies=[Depends(require_auth)])

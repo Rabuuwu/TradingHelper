@@ -15,6 +15,8 @@ portfolio_value_now:'Wartość',invested:'Kapitał',unrealized_pnl:'Niezrealizow
 positions:'Pozycje',portfolio_chart_note:'Wartość i niezrealizowany wynik portfela',
 paper_capital:'Kapitał symulatora',reset_paper:'Ustaw / resetuj PAPER',cash:'Gotówka',equity:'Equity',
 realized_pnl:'Zrealizowany P/L',paper_simulator:'Symulator PAPER',simulate_buy:'Symuluj kupno',simulate_sell:'Symuluj sprzedaż',
+suggested:'Podpowiedź systemu',entry_date:'Data wejścia',currency:'Waluta',quantity:'Ilość',strategy:'Strategia',
+paper_notes:'Notatki do transakcji',position_value:'Wartość pozycji',risk_value:'Ryzyko do SL',potential_tp1:'Potencjał do TP1',
 choose_setup:'Wybierz setup na pulpicie i otwórz jego szczegóły.',
 trade_journal:'Dziennik transakcji',watchlist:'Lista obserwowanych',system_events:'Zdarzenia systemowe',
 safe_settings:'Bezpieczne ustawienia',portfolio_value:'Wartość portfela',risk_percent:'Ryzyko %',
@@ -41,6 +43,8 @@ portfolio_value_now:'Value',invested:'Invested',unrealized_pnl:'Unrealized P/L',
 positions:'Positions',portfolio_chart_note:'Portfolio value and unrealized result',
 paper_capital:'Simulator capital',reset_paper:'Set / reset PAPER',cash:'Cash',equity:'Equity',
 realized_pnl:'Realized P/L',paper_simulator:'PAPER simulator',simulate_buy:'Simulate buy',simulate_sell:'Simulate sell',
+suggested:'System suggestion',entry_date:'Entry date',currency:'Currency',quantity:'Quantity',strategy:'Strategy',
+paper_notes:'Trade notes',position_value:'Position value',risk_value:'Risk to SL',potential_tp1:'Potential to TP1',
 choose_setup:'Choose a setup on the dashboard and open its details.',
 system_events:'System events',safe_settings:'Safe settings',portfolio_value:'Portfolio value',risk_percent:'Risk %',
 scan_interval:'Scan interval in seconds',display_currency:'Display currency',language:'Language',
@@ -109,16 +113,39 @@ $('#signalDetails').innerHTML=`<div class="signal-head"><div><h2>${esc(s.symbol)
 <details><summary>${tr('costs')}</summary><p>${tr('estimated_total')}: ${esc(money(s.estimated_total_cost,s.instrument_currency))} ·
 ${tr('net_expected')}: ${esc(money(s.expected_net_profit,s.instrument_currency))}</p></details>
 <details ${s.warnings?.length?'open':''}><summary>${tr('warnings')}</summary><p>${(s.warnings||[]).map(esc).join('<br>')||tr('none')}</p></details>
-<section class="paper-trade-box"><h3>${tr('paper_simulator')}</h3><form id="paperBuyForm" class="paper-trade-form">
+<section class="paper-trade-box"><h3>${tr('paper_simulator')}</h3><p class="meta">${tr('suggested')} — pola możesz zmienić przed symulacją.</p>
+<form id="paperBuyForm" class="paper-trade-form">
+<label>${tr('symbol')}<input name="symbol" value="${esc(s.symbol)}" readonly></label>
+<label>Broker / tryb<input value="SIMULATION / PAPER" readonly></label>
+<label>${tr('entry_date')}<input name="entry_date" type="datetime-local" required></label>
 <label>Entry<input name="price" type="number" min="0.0001" step="any" value="${((s.entry_low+s.entry_high)/2).toFixed(4)}" required></label>
-<label>Quantity<input name="quantity" type="number" min="0.000001" step="any" value="${s.recommended_quantity||''}" required></label>
-<button class="primary">${tr('simulate_buy')}</button></form><div id="signalPaperPositions"></div></section>
+<label>${tr('quantity')}<input name="quantity" type="number" min="0.000001" step="any" value="${s.recommended_quantity||''}" required></label>
+<label>${tr('currency')}<input name="currency" maxlength="3" value="${esc(s.instrument_currency)}" required></label>
+<label>Stop loss<input name="stop_price" type="number" min="0.0001" step="any" value="${s.stop_price||''}" required></label>
+<label>Take profit 1<input name="target_price" type="number" min="0.0001" step="any" value="${s.target_price||''}" required></label>
+<label>Take profit 2<input name="target_price_2" type="number" min="0.0001" step="any" value="${s.target_price_2||''}"></label>
+<label>${tr('strategy')}<input name="strategy" maxlength="100" value="${esc(s.label||'')}"></label>
+<label class="paper-notes">${tr('paper_notes')}<textarea name="notes" maxlength="1000" rows="2" placeholder="${tr('notes')}"></textarea></label>
+<div id="paperBuyPreview" class="paper-preview"></div><button class="primary">${tr('simulate_buy')}</button></form>
+<div id="signalPaperPositions"></div></section>
 <p class="warning">${tr('verify')}</p>`;$('#signalDialog').showModal();
 document.querySelectorAll('.chart-tf').forEach(button=>button.onclick=()=>{document.querySelectorAll('.chart-tf').forEach(x=>x.classList.remove('active'));
 button.classList.add('active');renderChart(s,button.dataset.timeframe)});
 $('#paperBuyForm').onsubmit=async event=>{event.preventDefault();const f=event.target;
-await api('/paper/buy',{method:'POST',body:JSON.stringify({symbol:s.symbol,signal_id:s.id,price:Number(f.price.value),quantity:Number(f.quantity.value)})});
-alert(`${tr('simulate_buy')}: ${s.symbol}`);await loadSignalPaperPositions(s.symbol)};
+const payload={symbol:s.symbol,signal_id:s.id,price:Number(f.price.value),quantity:Number(f.quantity.value),currency:f.currency.value.toUpperCase(),
+entry_date:new Date(f.entry_date.value).toISOString(),stop_price:Number(f.stop_price.value),target_price:Number(f.target_price.value),
+target_price_2:f.target_price_2.value?Number(f.target_price_2.value):null,strategy:f.strategy.value,notes:f.notes.value};
+const result=await api('/paper/buy',{method:'POST',body:JSON.stringify(payload)}),account=await api('/paper/account');
+alert(`${tr('simulate_buy')}: ${s.symbol} · ${money(result.total_account_currency,account.currency)}`);
+await loadSignalPaperPositions(s.symbol);await loadPortfolio()};
+const buyForm=$('#paperBuyForm');buyForm.entry_date.value=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+const updatePaperPreview=()=>{const price=Number(buyForm.price.value)||0,quantity=Number(buyForm.quantity.value)||0,
+stop=Number(buyForm.stop_price.value)||0,tp1=Number(buyForm.target_price.value)||0,currency=buyForm.currency.value.toUpperCase();
+$('#paperBuyPreview').innerHTML=`<div><small>${tr('position_value')}</small><b>${esc(money(price*quantity,currency))}</b></div>
+<div><small>${tr('risk_value')}</small><b>${esc(money(Math.max(0,price-stop)*quantity,currency))}</b></div>
+<div><small>${tr('potential_tp1')}</small><b>${esc(money(Math.max(0,tp1-price)*quantity,currency))}</b></div>
+<div><small>${tr('estimated_total')}</small><b>${esc(money(s.estimated_total_cost||0,s.instrument_currency))}</b></div>`};
+buyForm.querySelectorAll('input').forEach(input=>input.addEventListener('input',updatePaperPreview));updatePaperPreview();
 await loadSignalPaperPositions(s.symbol);await renderChart(s,s.timeframe||'1h')}
 async function sellPaperPosition(id,symbol){if(!confirm(`${tr('simulate_sell')} ${symbol}?`))return;
 await api('/paper/sell',{method:'POST',body:JSON.stringify({position_id:id})});await loadSignalPaperPositions(symbol);await loadPortfolio()}
