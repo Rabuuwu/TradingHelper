@@ -16,14 +16,20 @@ class CachedMarketData:
     ) -> None:
         self.provider = provider
         self.repository = repository
-        self.ttl = timedelta(seconds=ttl_seconds)
+        self.quote_ttl = timedelta(seconds=max(ttl_seconds, 720))
+        self.timeframe_ttl = {
+            "15m": timedelta(minutes=12),
+            "1h": timedelta(minutes=55),
+            "4h": timedelta(hours=3, minutes=50),
+            "1d": timedelta(hours=20),
+        }
         self.rate_limiter = RateLimiter()
 
     def get_quote(self, symbol: str, *, force: bool = False) -> Quote:
-        cached = self.repository.latest_quote(symbol)
+        cached = self.repository.latest_quote(symbol, self.provider.name)
         if cached and not force:
             fetched = datetime.fromisoformat(cached["fetched_at"])
-            if datetime.now(UTC) - fetched <= self.ttl:
+            if datetime.now(UTC) - fetched <= self.quote_ttl:
                 provenance = DataProvenance(
                     cached["data_source"],
                     datetime.fromisoformat(cached["timestamp"]),
@@ -39,10 +45,13 @@ class CachedMarketData:
     def get_candles(
         self, symbol: str, timeframe: str, limit: int = 300, *, force: bool = False
     ) -> CandleBatch:
-        cached = self.repository.cached_candles(symbol, timeframe, limit)
+        cached = self.repository.cached_candles(
+            symbol, timeframe, limit, self.provider.name
+        )
         if len(cached) >= limit and not force:
             fetched = datetime.fromisoformat(cached[-1]["fetched_at"])
-            if datetime.now(UTC) - fetched <= self.ttl:
+            ttl = self.timeframe_ttl.get(timeframe, timedelta(minutes=15))
+            if datetime.now(UTC) - fetched <= ttl:
                 frame = pd.DataFrame(cached).set_index("timestamp")
                 frame = frame[["open", "high", "low", "close", "volume"]]
                 provenance = DataProvenance(

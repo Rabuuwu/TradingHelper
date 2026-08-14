@@ -1,4 +1,4 @@
-const CACHE='trading-helper-v10',ASSETS=['/','/sw.js','/static/styles.css','/static/security.js','/static/app.js','/static/icon.svg','/static/manifest.webmanifest'];
+const CACHE='trading-helper-v11',ASSETS=['/','/sw.js','/static/styles.css','/static/security.js','/static/app.js','/static/icon.svg','/static/manifest.webmanifest'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS))));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))));
 self.addEventListener('fetch',event=>{const url=new URL(event.request.url);if(event.request.method!=='GET'||url.origin!==self.location.origin||!ASSETS.includes(url.pathname))return;

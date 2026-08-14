@@ -306,6 +306,16 @@ CREATE TABLE IF NOT EXISTS soak_observations (
     details_json TEXT NOT NULL DEFAULT '{}'
 );
 
+CREATE TABLE IF NOT EXISTS provider_credit_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    used_at TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    endpoint TEXT NOT NULL,
+    credits INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_provider_credit_usage_day
+ON provider_credit_usage(provider,used_at);
+
 -- Legacy tables retained so existing user data is never deleted during migration.
 CREATE TABLE IF NOT EXISTS positions_cache (
     account TEXT NOT NULL, con_id INTEGER NOT NULL, symbol TEXT NOT NULL,
@@ -413,6 +423,10 @@ def init_database(path: str) -> None:
         )
         connection.execute(
             "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (8, ?)",
+            (utc_now(),),
+        )
+        connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (9, ?)",
             (utc_now(),),
         )
 
@@ -543,8 +557,13 @@ class Repository:
             ),
         )
 
-    def latest_quote(self, symbol: str) -> dict[str, Any] | None:
-        rows = self.rows("SELECT * FROM quotes WHERE symbol=?", (symbol.upper(),))
+    def latest_quote(self, symbol: str, source: str | None = None) -> dict[str, Any] | None:
+        query = "SELECT * FROM quotes WHERE symbol=?"
+        params: tuple[Any, ...] = (symbol.upper(),)
+        if source:
+            query += " AND data_source=?"
+            params += (source,)
+        rows = self.rows(query, params)
         return rows[0] if rows else None
 
     def save_fx_rate(
@@ -577,13 +596,30 @@ class Repository:
         )
         return rows[0] if rows else None
 
-    def cached_candles(self, symbol: str, timeframe: str, limit: int) -> list[dict[str, Any]]:
+    def cached_candles(
+        self, symbol: str, timeframe: str, limit: int, source: str | None = None
+    ) -> list[dict[str, Any]]:
+        source_filter = " AND data_source=?" if source else ""
+        params: tuple[Any, ...] = (symbol.upper(), timeframe)
+        if source:
+            params += (source,)
+        params += (limit,)
         rows = self.rows(
-            """SELECT * FROM candles WHERE symbol=? AND timeframe=?
+            f"""SELECT * FROM candles WHERE symbol=? AND timeframe=?{source_filter}
             ORDER BY timestamp DESC LIMIT ?""",
-            (symbol.upper(), timeframe, limit),
+            params,
         )
         return list(reversed(rows))
+
+    def purge_market_cache_except(self, source: str) -> dict[str, int]:
+        with self.transaction() as connection:
+            candles = connection.execute(
+                "DELETE FROM candles WHERE data_source<>?", (source,)
+            ).rowcount
+            quotes = connection.execute(
+                "DELETE FROM quotes WHERE data_source<>?", (source,)
+            ).rowcount
+        return {"candles": candles, "quotes": quotes}
 
     def add_signal(self, payload: dict[str, Any]) -> int:
         columns = tuple(payload)

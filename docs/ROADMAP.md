@@ -34,3 +34,4 @@ DONE oznacza kod + testy + dokumentację + działający scenariusz.
 
 Historia sygnałów ma konfigurowalną retencję 90 dni, a dashboard pokazuje najnowszy rekord
 każdego symbolu. System jest long-only: SELL oznacza zamknięcie posiadanej pozycji, nie short.
+Twelve Data ma trwały credit budget, cache per provider/timeframe i market-aware scheduler.

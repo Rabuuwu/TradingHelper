@@ -17,15 +17,32 @@ MARKET_DATA_DELAY_MINUTES=
 ```
 
 Klucz jest wysyłany w nagłówku `Authorization`, nigdy w URL. Adapter ma timeout, retry,
-limit 8 requestów/minutę, cache SQLite i obsługę HTTP 429. Darmowy plan ma limity, które
+limit 7 requestów/minutę, cache SQLite i obsługę HTTP 429. Darmowy plan ma limity, które
 mogą się zmieniać; przed użyciem należy sprawdzić aktualny cennik i dostępność instrumentu.
 Pole `MARKET_DATA_DELAY_MINUTES` pozwala jawnie oznaczyć feed jako opóźniony. Nawet przy
 pustym polu aplikacja nadal wykrywa nieaktualność na podstawie czasu ostatniej świecy.
 
 Ten sam adapter dostarcza kursy par walutowych do `FxRateService`. Kurs jest cache'owany
-w tabeli `fx_rates` domyślnie przez 60 minut. API ujawnia kurs, źródło, timestamp i
+w tabeli `fx_rates` domyślnie przez 360 minut. API ujawnia kurs, źródło, timestamp i
 status; przy awarii providera system korzysta z jawnie oznaczonego fallbacku YAML.
 
 Nowy provider implementuje kontrakt w `market_data/provider.py`, pobiera sekret wyłącznie
 z `.env` i musi mieć testy z mockiem bez prawdziwych requestów w CI. Broker nie jest
 providerem wymaganym przez system.
+
+## Budżet Twelve Data
+
+Domyślny plan jest chroniony trwałym licznikiem SQLite: 800 kredytów na dobę, z czego
+automatyczne zadania mogą wykorzystać 720. Pozostałe 80 stanowi rezerwę bezpieczeństwa.
+Licznik przeżywa restart i jest dostępny w `/market/credits` oraz `/status`. Wyczerpanie
+budżetu daje kontrolowany `ProviderRateLimited`, bez bezcelowych ponownych prób.
+
+Cache jest izolowany przez `data_source`; uruchomienie realnego providera usuwa wyłącznie
+stare SAMPLE candles/quotes, nigdy portfolio, trades ani sygnały. TTL: 15m=12 minut,
+1h=55 minut, 4h=3h50m, 1d=20 godzin. Status sesji USA jest liczony lokalnie w strefie
+`America/New_York`, więc odświeżanie dashboardu nie zużywa kredytów.
+
+Scheduler Twelve Data wykonuje skan nie częściej niż raz na godzinę podczas sesji oraz
+jeden skan po zamknięciu. Monitoring pozycji poza sesją działa raz dziennie. Przy pięciu
+symbolach typowy koszt skanera to około 45 kredytów dziennie, plus wykresy na żądanie i
+quote otwartych pozycji.

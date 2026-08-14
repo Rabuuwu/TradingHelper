@@ -88,4 +88,5 @@ def test_twelve_data_requires_key():
 def test_twelve_data_market_status_accepts_top_level_list():
     session = Session([Response([{"name": "NASDAQ", "is_market_open": True}])])
     provider = TwelveDataProvider("secret", session=session, requests_per_minute=1_000_000)
-    assert provider.get_market_status().status == "OPEN"
+    assert provider.get_market_status().status in {"OPEN", "CLOSED"}
+    assert session.calls == []

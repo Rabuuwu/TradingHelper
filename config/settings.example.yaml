@@ -35,7 +35,7 @@ risk:
   fractional_shares: true
 
 fx:
-  cache_minutes: 60
+  cache_minutes: 360
   stale_after_minutes: 1440
 
 trailing_stop:

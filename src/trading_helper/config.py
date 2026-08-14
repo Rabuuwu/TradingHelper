@@ -34,6 +34,9 @@ class Settings:
     auth_password_hash: str
     session_secret: str
     provider_delay_minutes: int | None = None
+    provider_daily_credit_limit: int = 800
+    provider_credit_reserve: int = 80
+    provider_requests_per_minute: int = 7
 
 
 @dataclass(frozen=True)
@@ -154,6 +157,9 @@ def load_settings() -> Settings:
         auth_password_hash=os.getenv("AUTH_PASSWORD_HASH", ""),
         session_secret=os.getenv("SESSION_SECRET", ""),
         provider_delay_minutes=int(delay_value) if delay_value else None,
+        provider_daily_credit_limit=int(os.getenv("MARKET_DATA_DAILY_CREDIT_LIMIT", "800")),
+        provider_credit_reserve=int(os.getenv("MARKET_DATA_CREDIT_RESERVE", "80")),
+        provider_requests_per_minute=int(os.getenv("MARKET_DATA_REQUESTS_PER_MINUTE", "7")),
     )
 
 

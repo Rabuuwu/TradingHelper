@@ -25,6 +25,9 @@ zabezpieczenia. Tailscale i auth nie zastępują aktualizacji systemu oraz backu
 Monitoruj `/ready`, wiek `last_market_data_update`, `last_successful_scan`,
 `last_position_monitor`, `last_notification`, stan schedulera, miejsce na dysku i ntfy.
 Systemd restartuje proces po awarii. Alerty PENDING/FAILED są ponawiane do pięciu razy.
+Monitoruj też `/market/credits`: `background_remaining=0` oznacza bezpieczne zatrzymanie
+zewnętrznych requestów do następnego dnia UTC. `IDLE_MARKET_CLOSED` jest prawidłowym stanem
+oszczędzania kredytów poza sesją, a nie awarią schedulera.
 
 `GET /soak/status` raportuje kolejne dni zdrowej pracy. Wynik `PASSED` pojawia się wyłącznie
 po 14 różnych, kolejnych dniach bez obserwacji UNHEALTHY. Test przyspieszony nie zastępuje
