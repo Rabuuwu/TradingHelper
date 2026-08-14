@@ -17,6 +17,30 @@ def test_paper_buy_and_sell_update_cash_and_realized_pnl(tmp_path) -> None:
     assert paper.ledger()[0]["transaction_type"] == "SELL"
 
 
+def test_paper_buy_preserves_custom_trade_plan_and_metadata(tmp_path) -> None:
+    repository = Repository(str(tmp_path / "paper.db"))
+    paper = PaperPortfolioService(repository, 1000, "PLN")
+    position_id = paper.buy(
+        PaperBuy(
+            "AAPL", 10, 2, "USD", 4, 1,
+            stop_price=9, target_price=12, target_price_2=14,
+            signal_score=82, entry_date="2026-08-14T12:30:00Z",
+            strategy="pullback", notes="własny plan",
+        )
+    )
+    position = repository.rows("SELECT * FROM manual_positions WHERE id=?", (position_id,))[0]
+    trade = repository.rows("SELECT * FROM trades WHERE position_id=?", (position_id,))[0]
+    assert (
+        position["stop_price"],
+        position["target_price"],
+        position["target_price_2"],
+    ) == (9, 12, 14)
+    assert position["entry_date"] == "2026-08-14T12:30:00Z"
+    assert trade["strategy"] == "pullback"
+    assert trade["signal_score_at_entry"] == 82
+    assert "własny plan" in trade["notes"]
+
+
 def test_paper_buy_rejects_insufficient_cash(tmp_path) -> None:
     paper = PaperPortfolioService(Repository(str(tmp_path / "paper.db")), 100, "PLN")
     try:
