@@ -42,6 +42,8 @@ python -m trading_helper.main self-check
 python -m trading_helper.main init-db
 python -m trading_helper.main scan-once
 python -m trading_helper.main paper-soak --cycles 1000
+python scripts/auto_paper_trader.py --initial-cash 100 --once
+python scripts/auto_paper_trader.py --initial-cash 100 --status
 python -m trading_helper.main run
 ```
 
@@ -56,6 +58,9 @@ scheduler i web UI. Zamknięcie przeglądarki nie zatrzymuje analiz ani ntfy.
 - `GET|POST|PUT|DELETE /portfolio`
 - `GET /portfolio/history`, `GET|PUT /paper/account`
 - `POST /paper/buy`, `POST /paper/sell` (wyłącznie lokalna symulacja)
+
+Oddzielny [autonomiczny eksperyment PAPER](docs/AUTO_PAPER_TRADER.md) może testować
+strategię bez doładowań i bez mieszania wyniku z ręcznym symulatorem.
 - `GET /soak/status`, `GET /signals/{symbol}/history`
 - `GET /market/candles/{symbol}`
 - `GET /market/credits` — dzienne wykorzystanie budżetu per endpoint

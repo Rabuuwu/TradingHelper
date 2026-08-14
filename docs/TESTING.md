@@ -16,6 +16,7 @@ w tym stored-XSS oraz brak prywatnych endpointów w Cache Storage. Workflow Secu
 
 ```bash
 python -m trading_helper.main paper-soak --cycles 1000
+python scripts/auto_paper_trader.py --initial-cash 100 --once
 ```
 
 Nie zastępuje on rzeczywistego 14-dniowego testu czasu pracy. Jego stan zbiera watchdog i

@@ -1,0 +1,27 @@
+[Unit]
+Description=TradingHelper autonomous PAPER strategy experiment
+After=network-online.target trading-helper.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rabu
+Group=rabu
+WorkingDirectory=/home/rabu/TradingHelper
+EnvironmentFile=/home/rabu/TradingHelper/.env
+Environment=AUTO_PAPER_INITIAL_CASH=100
+Environment=AUTO_PAPER_INTERVAL_SECONDS=300
+Environment=AUTO_PAPER_MINIMUM_SCORE=70
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/rabu/TradingHelper/.venv/bin/python scripts/auto_paper_trader.py --initial-cash ${AUTO_PAPER_INITIAL_CASH} --interval ${AUTO_PAPER_INTERVAL_SECONDS} --minimum-score ${AUTO_PAPER_MINIMUM_SCORE}
+Restart=on-failure
+RestartSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/rabu/TradingHelper/data
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
