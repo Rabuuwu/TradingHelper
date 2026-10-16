@@ -24,6 +24,13 @@ class OtherCountingProvider(CountingProvider):
         return replace(batch, provenance=replace(batch.provenance, source=self.name))
 
 
+class ShortSeriesProvider(CountingProvider):
+    def get_candles(self, symbol, timeframe, limit=300, **kwargs):
+        self.calls += 1
+        batch = super(CountingProvider, self).get_candles(symbol, timeframe, limit=limit)
+        return replace(batch, frame=batch.frame.tail(20))
+
+
 def test_sample_provider_is_deterministic() -> None:
     provider = SampleMarketDataProvider(now=datetime(2026, 1, 1, tzinfo=UTC))
     first = provider.get_candles("AAPL", "1h", limit=220)
@@ -50,3 +57,13 @@ def test_market_data_cache_never_reuses_another_provider_source(tmp_path) -> Non
     assert other.calls == 1
     assert batch.provenance.source == "other"
     assert len(repository.cached_candles("AAPL", "1h", 220, "other")) == 220
+
+
+def test_short_candle_series_is_cached_for_the_normal_ttl(tmp_path) -> None:
+    provider = ShortSeriesProvider()
+    cache = CachedMarketData(provider, Repository(str(tmp_path / "short.db")))
+    first = cache.get_candles("NEW", "1h", 220)
+    second = cache.get_candles("NEW", "1h", 220)
+
+    assert len(first.frame) == len(second.frame) == 20
+    assert provider.calls == 1

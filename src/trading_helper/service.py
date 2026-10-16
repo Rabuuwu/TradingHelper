@@ -15,6 +15,7 @@ from trading_helper.database import Repository, utc_now
 from trading_helper.fx import FxRateService
 from trading_helper.market_data.cache import CachedMarketData
 from trading_helper.market_data.factory import create_provider
+from trading_helper.market_data.models import SymbolInfo
 from trading_helper.market_data.provider import MarketDataProvider
 from trading_helper.paper import PaperPortfolioService
 from trading_helper.portfolio import PositionMonitor
@@ -26,6 +27,10 @@ from trading_helper.signals import SignalQueryService
 from trading_helper.soak import SoakMonitor
 
 logger = logging.getLogger(__name__)
+
+
+class ScanAlreadyRunning(RuntimeError):
+    """Raised when a scheduled or manual scan is already in progress."""
 
 
 class TradingHelperService:
@@ -79,6 +84,7 @@ class TradingHelperService:
             self.repository, self.market_data, strategy.atr_stop_multiplier
         )
         self.stop_event = threading.Event()
+        self._scan_lock = threading.Lock()
         self.started_at = datetime.now(UTC)
 
     def runtime_setting(self, key: str, default: Any) -> Any:
@@ -109,6 +115,14 @@ class TradingHelperService:
         return warnings
 
     def scan_once(self) -> dict[str, int]:
+        if not self._scan_lock.acquire(blocking=False):
+            raise ScanAlreadyRunning("A scan is already running")
+        try:
+            return self._perform_scan_once()
+        finally:
+            self._scan_lock.release()
+
+    def _perform_scan_once(self) -> dict[str, int]:
         symbols = self.scan_symbols()
         run_id = self.repository.start_scan(len(symbols), self.provider.name)
         self.repository.event("scanner_started", f"Scan {run_id} started")
@@ -155,7 +169,22 @@ class TradingHelperService:
         setup_batch = self.market_data.get_candles(
             symbol, self.strategy.setup_timeframe, self.strategy.candle_limit
         )
-        info = self.provider.get_symbol_info(symbol)
+        cached_info = self.repository.rows(
+            "SELECT * FROM symbols WHERE symbol=? AND data_source=? AND active=1",
+            (symbol.upper(), self.provider.name),
+        )
+        info = (
+            SymbolInfo(
+                cached_info[0]["symbol"],
+                cached_info[0]["name"],
+                cached_info[0]["asset_type"],
+                cached_info[0]["currency"],
+                cached_info[0]["exchange"],
+                True,
+            )
+            if cached_info
+            else self.provider.get_symbol_info(symbol)
+        )
         quote = self.market_data.get_quote(symbol)
         self.repository.upsert_symbol(
             info.symbol,
@@ -387,13 +416,14 @@ class TradingHelperService:
         SoakMonitor(self.repository).record("HEALTHY", {"watchdog": "HEALTHY"})
         return "HEALTHY"
 
-    def run_forever(self) -> None:
+    def run_forever(self, *, install_signal_handlers: bool = True) -> None:
         def stop_handler(signum: int, frame: object) -> None:
             logger.info("Received signal %s, stopping", signum)
             self.stop_event.set()
 
-        signal.signal(signal.SIGTERM, stop_handler)
-        signal.signal(signal.SIGINT, stop_handler)
+        if install_signal_handlers:
+            signal.signal(signal.SIGTERM, stop_handler)
+            signal.signal(signal.SIGINT, stop_handler)
         self.repository.event("server_started", "TradingHelper scheduler started")
         next_scan = next_monitor = next_watchdog = 0.0
         daily_state = self.repository.rows(
@@ -405,6 +435,7 @@ class TradingHelperService:
             else ""
         )
         last_closed_monitor = ""
+        scheduler_state = None
         try:
             while not self.stop_event.is_set():
                 now = datetime.now(UTC).timestamp()
@@ -422,6 +453,8 @@ class TradingHelperService:
                 if scanner_enabled and market_open and now >= next_scan:
                     try:
                         self.scan_once()
+                    except ScanAlreadyRunning:
+                        logger.info("Scheduled scan skipped because another scan is running")
                     except Exception as exc:
                         logger.exception("Scheduled scan failed")
                         self.repository.set_state("scanner", f"ERROR: {exc}")
@@ -438,6 +471,8 @@ class TradingHelperService:
                         self.scan_once()
                         last_daily_scan = daily_key
                         self.repository.set_state("last_daily_scan", utc_now())
+                    except ScanAlreadyRunning:
+                        logger.info("Daily scan skipped because another scan is running")
                     except Exception as exc:
                         logger.exception("Daily scan failed")
                         self.repository.event("daily_scan_failed", str(exc), "ERROR")
@@ -463,7 +498,9 @@ class TradingHelperService:
                 if now >= next_watchdog:
                     self.watchdog(scan_interval)
                     next_watchdog = now + 60
-                self.repository.set_state("scheduler", "ACTIVE")
+                if scheduler_state != "ACTIVE":
+                    self.repository.set_state("scheduler", "ACTIVE")
+                    scheduler_state = "ACTIVE"
                 self.stop_event.wait(1)
         except Exception as exc:
             logger.exception("Scheduler failed")

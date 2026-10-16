@@ -16,9 +16,19 @@ MARKET_DATA_API_KEY=klucz_z_panelu_twelve_data
 MARKET_DATA_DELAY_MINUTES=
 ```
 
-Klucz jest wysyłany w nagłówku `Authorization`, nigdy w URL. Adapter ma timeout, retry,
-limit 7 requestów/minutę, cache SQLite i obsługę HTTP 429. Darmowy plan ma limity, które
-mogą się zmieniać; przed użyciem należy sprawdzić aktualny cennik i dostępność instrumentu.
+Konfigurator `scripts/configure_market_data.py` bezpiecznie pyta o klucz (nie pokazuje
+go na ekranie), sprawdza go prawdziwym zapytaniem o AAPL i dopiero po sukcesie zapisuje
+do lokalnego, ignorowanego przez Git pliku `.env`. Domyślne `MARKET_DATA_PROVIDER=`
+wybiera Twelve Data, jeśli istnieje klucz; bez niego pozostaje przy jawnym providerze
+offline `sample`. Żeby używać danych rynkowych, potrzebny jest klucz z konta Twelve Data.
+
+Klucz jest wysyłany w nagłówku `Authorization`, nigdy w URL. Adapter ma timeout, retry
+wyłącznie dla timeoutów i tymczasowych błędów serwera, limit 7 requestów/minutę, cache
+SQLite i obsługę HTTP 429. Błędy walidacji i pozostałe odpowiedzi 4xx kończą się bez
+ponawiania, żeby nie zużywać kolejnych kredytów. Plan Basic jest bezpłatny,
+ma 8 kredytów/minutę i 800/dobę; TradingHelper zachowuje 80 kredytów jako rezerwę.
+Darmowy plan przeznaczony jest do użytku wewnętrznego i ma ograniczenia pokrycia/licencji;
+przed użyciem należy sprawdzić aktualne warunki, dostępność instrumentu i rodzaj feedu.
 Pole `MARKET_DATA_DELAY_MINUTES` pozwala jawnie oznaczyć feed jako opóźniony. Nawet przy
 pustym polu aplikacja nadal wykrywa nieaktualność na podstawie czasu ostatniej świecy.
 
@@ -39,7 +49,11 @@ budżetu daje kontrolowany `ProviderRateLimited`, bez bezcelowych ponownych pró
 
 Cache jest izolowany przez `data_source`; uruchomienie realnego providera usuwa wyłącznie
 stare SAMPLE candles/quotes, nigdy portfolio, trades ani sygnały. TTL: 15m=12 minut,
-1h=55 minut, 4h=3h50m, 1d=20 godzin. Status sesji USA jest liczony lokalnie w strefie
+1h=55 minut, 4h=3h50m, 1d=20 godzin. Notowania do monitoringu mają osobny TTL maksymalnie
+5 minut; status danych oznacza cenę starszą niż 15 minut jako `STALE`. Poprawne krótkie
+serie świec również korzystają z TTL, co ogranicza powtarzanie tych samych zapytań dla
+nowych instrumentów. Metadane symboli są ponownie wykorzystywane z tabeli `symbols` po
+restartach. Status sesji USA jest liczony lokalnie w strefie
 `America/New_York`, więc odświeżanie dashboardu nie zużywa kredytów.
 
 Scheduler Twelve Data wykonuje skan nie częściej niż raz na godzinę podczas sesji oraz

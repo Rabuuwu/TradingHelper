@@ -1,0 +1,89 @@
+app:
+  name: TradingHelper
+  timezone: Europe/Warsaw
+  mode: simulation
+  language: pl
+
+universe:
+  symbols: [AAPL, MSFT, NVDA, AMD, SPY]
+
+scanner:
+  signal_retention_days: 90
+  enabled: true
+  minimum_score_to_watch: 40
+  minimum_score_to_alert: 70
+  scan_interval_seconds: 1800
+  position_monitor_interval_seconds: 300
+  daily_scan_hour_utc: 22
+  trend_timeframe: "1d"
+  setup_timeframe: "1h"
+  candle_limit: 300
+  stale_after_minutes: 30
+
+risk:
+  portfolio_value: 100.0
+  available_capital: 100.0
+  portfolio_currency: PLN
+  # Manual planning rates: value of one unit of instrument currency in portfolio currency.
+  # Update before using feasibility results; they are not live FX quotes.
+  fx_rates_to_portfolio: {PLN: 1.0, USD: 4.0, EUR: 4.3}
+  max_risk_per_trade_percent: 1.0
+  max_open_positions: 8
+  minimum_risk_reward: 2.0
+  max_portfolio_exposure_percent: 80.0
+  max_single_position_percent: 20.0
+  fractional_shares: true
+
+fx:
+  cache_minutes: 360
+  stale_after_minutes: 1440
+
+trailing_stop:
+  enabled: true
+  atr_multiplier: 2.5
+  never_move_stop_down: true
+
+indicators:
+  ema_fast: 20
+  ema_medium: 50
+  ema_slow: 200
+  rsi_period: 14
+  atr_period: 14
+  volume_average_period: 20
+  roc_period: 12
+  bollinger_period: 20
+
+costs:
+  active_profile: custom
+  max_cost_to_profit_percent: 30.0
+  profiles:
+    xtb:
+      commission_buy: 0.0
+      commission_sell: 0.0
+      minimum_fee: 0.0
+      fx_percent: 0.5
+      spread_percent: 0.10
+      slippage_percent: 0.05
+    ibkr:
+      commission_buy: 0.0
+      commission_sell: 0.0
+      minimum_fee: 1.0
+      fx_percent: 0.03
+      spread_percent: 0.05
+      slippage_percent: 0.03
+    custom:
+      commission_buy: 0.0
+      commission_sell: 0.0
+      minimum_fee: 0.0
+      fx_percent: 0.0
+      spread_percent: 0.10
+      slippage_percent: 0.05
+
+notifications:
+  enabled_types: [BUY_SETUP, STRONG_BUY_SETUP, EXIT_WARNING, TRAILING_STOP, DATA_ERROR]
+  cooldown_minutes: 240
+
+backup:
+  enabled: true
+  directory: data/backups
+  retention_days: 14
