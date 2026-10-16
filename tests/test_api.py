@@ -1,5 +1,6 @@
 import pytest
 from fastapi import HTTPException, Response
+from fastapi.testclient import TestClient
 
 from trading_helper.api import (
     PositionCreate,
@@ -8,6 +9,7 @@ from trading_helper.api import (
     _decode_signal,
     add_position,
     add_watchlist,
+    app,
     dashboard,
     delete_watchlist,
     health,
@@ -24,12 +26,19 @@ def test_health() -> None:
     assert health()["status"] == "ok"
 
 
+@pytest.mark.parametrize("path", ["/events?limit=-1", "/alerts?limit=501"])
+def test_event_and_alert_lists_are_bounded(path: str) -> None:
+    response = TestClient(app).get(path)
+    assert response.status_code == 422
+
+
 def test_core_api_handlers_work_without_broker(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("TRADING_HELPER_DB", str(tmp_path / "api.db"))
     monkeypatch.setenv("SETTINGS_FILE", "config/settings.example.yaml")
 
     assert ready(Response())["status"] == "ready"
     assert status()["server"] == "ONLINE"
+    assert status()["data_status"] == "SIMULATION"
     assert public_settings()["provider"] == "sample"
     assert "PLN" in public_settings()["supported_currencies"]
     assert str(dashboard().path).endswith("index.html")

@@ -3,67 +3,166 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#f5f7fb">
+  <meta name="theme-color" content="#f3f6f8">
   <title>TradingHelper</title>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <header class="topbar">
-    <div><span class="logo">TH</span><strong>TradingHelper</strong></div>
-    <button id="statusButton" class="status"><span class="dot"></span> CONNECTING</button>
+    <a class="brand" href="#dashboard" aria-label="TradingHelper — pulpit" data-i18n-aria-label="navDashboard">
+      <span class="brand-mark" aria-hidden="true">TH</span>
+      <span><strong>TradingHelper</strong><small data-i18n="brandSubtitle">Twój rynek, czytelny plan</small></span>
+    </a>
+    <div class="top-actions">
+      <button id="statusButton" class="connection" type="button" aria-controls="healthPanel" aria-expanded="false">
+        <span class="status-dot" aria-hidden="true"></span><span id="connectionLabel">Łączenie…</span>
+      </button>
+      <button class="icon-button" type="button" data-view="settings" aria-label="Ustawienia" data-i18n-aria-label="settingsTitle" title="Ustawienia">⚙</button>
+    </div>
   </header>
-  <nav>
-    <button data-view="dashboard" class="active" data-i18n="nav_dashboard">Pulpit</button>
-    <button data-view="portfolio" data-i18n="nav_portfolio">Portfel</button>
-    <button data-view="journal" data-i18n="nav_journal">Dziennik</button>
-    <button data-view="watchlist" data-i18n="nav_watchlist">Obserwowane</button>
-    <button data-view="events" data-i18n="nav_system">System</button>
-    <button data-view="settings" data-i18n="nav_settings">Ustawienia</button>
+
+  <nav class="main-nav" aria-label="Nawigacja główna" data-i18n-aria-label="mainNavigation">
+    <button type="button" data-view="dashboard" aria-current="page"><span aria-hidden="true">◫</span><span data-i18n="navDashboard">Pulpit</span></button>
+    <button type="button" data-view="portfolio"><span aria-hidden="true">▤</span><span data-i18n="navPortfolio">Portfel</span></button>
+    <button type="button" data-view="activity"><span aria-hidden="true">◷</span><span data-i18n="navActivity">Aktywność</span></button>
+    <details class="more-menu" id="moreMenu">
+      <summary><span aria-hidden="true">···</span><span data-i18n="navMore">Więcej</span></summary>
+      <div class="more-popover">
+        <button type="button" data-view="watchlist" data-i18n="watchlistTitle">Obserwowane symbole</button>
+        <button type="button" data-view="system" data-i18n="systemTitle">Stan systemu</button>
+        <button type="button" data-view="settings" data-i18n="settingsTitle">Ustawienia</button>
+      </div>
+    </details>
   </nav>
-  <main>
-    <section id="healthPanel" class="health card hidden"></section>
+
+  <main id="mainContent" tabindex="-1">
     <section id="dashboard" class="view">
-      <div class="hero"><div><small data-i18n="hero_badge">NIEZALEŻNY ASYSTENT TRADINGOWY</small>
-        <h1 data-i18n="hero_title">Rynek w jednym miejscu.</h1><p data-i18n="hero_text">Analiza i monitoring. Każdą transakcję wykonujesz ręcznie.</p>
-      </div><button id="scanButton" class="primary" data-i18n="run_scan">Uruchom skan</button></div>
-      <div class="section-title"><h2 data-i18n="top_setups">Najlepsze setupy</h2><span id="lastUpdate">—</span></div>
-      <div id="signals" class="grid"></div>
+      <section id="healthPanel" class="health-panel hidden" aria-live="polite"></section>
+      <header class="page-heading dashboard-heading">
+        <div><p class="eyebrow" data-i18n="dashboardEyebrow">PULPIT RYNKU</p><h1 data-i18n="dashboardTitle">Najpierw to, co ważne.</h1>
+          <p class="intro" data-i18n="dashboardIntro">Sygnały, kondycja danych i otwarte pozycje w jednym widoku.</p></div>
+        <button id="scanButton" class="button button-primary" type="button"><span aria-hidden="true">↻</span><span data-i18n="runScan">Uruchom skan</span></button>
+      </header>
+      <div id="dashboardSummary" class="summary-strip" aria-live="polite"></div>
+      <div class="section-heading"><div><p class="eyebrow" data-i18n="analysis">ANALIZA</p><h2 data-i18n="setupHeading">Setupy do sprawdzenia</h2></div>
+        <span id="lastUpdate" class="updated-label" data-i18n="waitingData">Oczekiwanie na dane</span></div>
+      <div id="signals" class="signal-grid" aria-live="polite"></div>
     </section>
-    <section id="portfolio" class="view hidden"><div class="section-title"><h2 data-i18n="portfolio">Portfel</h2>
-      <button id="addPaper" class="primary" data-i18n="simulate_entry">Symuluj wejście</button></div>
-      <div id="portfolioSummary" class="compact-stats"></div>
-      <form id="paperCapitalForm" class="inline-form card"><label><span data-i18n="paper_capital">Kapitał symulatora</span>
-        <input name="initial_cash" type="number" min="1" step="0.01" required></label>
-        <button class="primary" data-i18n="reset_paper">Ustaw / resetuj PAPER</button></form>
-      <div class="card portfolio-chart-card"><div id="portfolioChart" class="portfolio-chart"></div>
-        <small data-i18n="portfolio_chart_note">Wartość i niezrealizowany wynik portfela</small></div>
-      <section id="exitSignals" class="exit-section hidden"><h3 data-i18n="exit_signals">Sygnały wyjścia</h3><div id="exitItems"></div></section>
-      <h3 data-i18n="positions">Pozycje</h3><div id="positions"></div></section>
-    <section id="journal" class="view hidden"><h2 data-i18n="trade_journal">Dziennik transakcji</h2><div id="stats" class="stats"></div>
-      <div id="trades"></div></section>
-    <section id="watchlist" class="view hidden"><h2 data-i18n="watchlist">Lista obserwowanych</h2>
-      <form id="watchlistForm" class="card inline-form">
-        <label><span data-i18n="symbol">Symbol</span><input name="symbol" placeholder="np. NVDA" required maxlength="20"></label>
-        <label><span data-i18n="notes">Notatka (opcjonalnie)</span><input name="notes" placeholder="np. obserwuj wybicie" maxlength="200"></label>
-        <button class="primary" data-i18n="add_to_watchlist">Dodaj do listy</button>
-      </form><div id="watchItems"></div></section>
-    <section id="events" class="view hidden"><h2 data-i18n="system_events">Zdarzenia systemowe</h2><div id="eventList"></div></section>
-    <section id="settings" class="view hidden"><h2 data-i18n="safe_settings">Bezpieczne ustawienia</h2><form id="settingsForm" class="card">
-      <label><span data-i18n="portfolio_value">Wartość portfela</span><input name="portfolio_value" type="number" min="1" step="0.01"></label>
-      <label><span data-i18n="risk_percent">Ryzyko %</span><input name="risk_percent" type="number" min="0.1" max="10" step="0.1"></label>
-      <label><span data-i18n="scan_interval">Interwał skanowania w sekundach</span><input name="scan_interval_seconds" type="number" min="60"></label>
-      <label><span data-i18n="display_currency">Waluta prezentacji</span><select name="display_currency"></select></label>
-      <label><span data-i18n="language">Język</span><select name="language"><option value="pl">Polski</option><option value="en">English</option></select></label>
-      <p id="fxStatus" class="warning" data-i18n="fx_loading">Sprawdzanie kursów walut…</p>
-      <button class="primary" data-i18n="save">Zapisz</button></form></section>
+
+    <section id="portfolio" class="view hidden">
+      <header class="page-heading"><div><p class="eyebrow" data-i18n="portfolioEyebrow">TWOJE POZYCJE</p><h1 data-i18n="portfolioTitle">Portfel</h1>
+        <p class="intro" data-i18n="portfolioIntro">Pozycje ręczne i symulacje PAPER są wyraźnie rozdzielone.</p></div>
+        <button id="addPosition" class="button button-primary" type="button" data-i18n="addPosition">Dodaj pozycję</button></header>
+      <div id="portfolioSummary" class="summary-strip portfolio-summary"></div>
+      <section class="chart-section">
+        <div class="section-heading"><div><p class="eyebrow" data-i18n="portfolioEyebrow">PORTFEL</p><h2 data-i18n="portfolioHistory">Wartość portfela w czasie</h2></div>
+          <span class="mode-tag" data-i18n="performance">Wartość i wynik</span></div>
+        <div id="portfolioChart" class="portfolio-chart" aria-label="Wykres wartości portfela" data-i18n-aria-label="portfolioChartLabel"></div>
+        <p class="chart-note" data-i18n="chartNote">Historia zapisana przez monitoring portfela.</p>
+      </section>
+      <section id="exitSignals" class="exit-section hidden"><h2 data-i18n="attentionHeading">Wymaga uwagi</h2><div id="exitItems"></div></section>
+      <section class="positions-section"><div class="section-heading"><div><p class="eyebrow" data-i18n="monitoring">MONITORING</p><h2 data-i18n="openPositions">Otwarte pozycje</h2></div>
+        <label class="filter-control"><span data-i18n="show">Pokaż</span><select id="positionFilter"><option value="ALL" data-i18n="allPositions">Wszystkie</option><option value="MANUAL" data-i18n="manualPositions">Ręczne</option><option value="PAPER" data-i18n="paperPositions">PAPER</option></select></label></div>
+        <div id="positions" class="list-stack"></div></section>
+      <details class="advanced-settings"><summary data-i18n="paperSettings">Ustawienia symulatora PAPER</summary>
+        <p data-i18n="paperSettingsHelp">Zmiana kapitału rozpoczyna nowe konto PAPER. Możesz to zrobić po zamknięciu wszystkich symulowanych pozycji.</p>
+        <form id="paperCapitalForm" class="inline-form">
+          <label for="paperInitialCash"><span data-i18n="initialCapital">Kapitał początkowy</span> <span id="paperCurrencyLabel"></span></label>
+          <input id="paperInitialCash" name="initial_cash" type="number" min="1" step="0.01" required>
+          <button class="button button-secondary" type="submit" data-i18n="changeCapital">Zmień kapitał</button>
+          <span id="paperResetError" class="form-message" role="alert"></span>
+        </form>
+      </details>
+    </section>
+
+    <section id="activity" class="view hidden">
+      <header class="page-heading"><div><p class="eyebrow" data-i18n="historyEyebrow">HISTORIA</p><h1 data-i18n="activityTitle">Aktywność</h1>
+        <p class="intro" data-i18n="activityIntro">Transakcje i praca systemu, oddzielone prostym filtrem.</p></div></header>
+      <div class="segmented-control" role="group" aria-label="Rodzaj aktywności" data-i18n-aria-label="activityFilter">
+        <button type="button" data-activity="trades" aria-pressed="true" data-i18n="trades">Transakcje</button>
+        <button type="button" data-activity="events" aria-pressed="false" data-i18n="system">System</button>
+      </div>
+      <section id="tradeActivity" class="activity-panel"><div id="stats" class="statistics-strip"></div><div id="trades" class="list-stack"></div></section>
+      <section id="eventActivity" class="activity-panel hidden"><div id="eventList" class="list-stack"></div></section>
+    </section>
+
+    <section id="watchlist" class="view hidden">
+      <header class="page-heading"><div><p class="eyebrow" data-i18n="toolsEyebrow">NARZĘDZIA</p><h1 data-i18n="watchlistTitle">Obserwowane symbole</h1>
+        <p class="intro" data-i18n="watchlistIntro">Dodaj symbol, żeby łatwo wracać do wybranych rynków.</p></div></header>
+      <form id="watchlistForm" class="form-panel">
+        <label for="watchSymbol" data-i18n="symbol">Symbol<input id="watchSymbol" name="symbol" placeholder="np. NVDA" required maxlength="20"></label>
+        <label for="watchNotes" data-i18n="optionalNote">Notatka (opcjonalnie)<input id="watchNotes" name="notes" placeholder="np. obserwuj wybicie" maxlength="200"></label>
+        <button class="button button-primary" type="submit" data-i18n="addSymbol">Dodaj symbol</button>
+        <span class="form-message" id="watchlistMessage" role="status"></span>
+      </form>
+      <label class="watch-search"><span data-i18n="filterWatchlist">Filtruj obserwowane</span><input id="watchSearch" type="search" placeholder="Wpisz symbol lub notatkę" data-i18n-placeholder="searchSymbol"></label>
+      <div id="watchItems" class="list-stack"></div>
+    </section>
+
+    <section id="system" class="view hidden">
+      <header class="page-heading"><div><p class="eyebrow" data-i18n="healthEyebrow">KONDYCJA</p><h1 data-i18n="systemTitle">Stan systemu</h1>
+        <p class="intro" data-i18n="systemIntro">Połączenie, źródło i aktualność danych to osobne informacje.</p></div>
+        <button id="refreshSystem" class="button button-secondary" type="button" data-i18n="refresh">Odśwież</button></header>
+      <div id="systemDetails" class="system-grid" aria-live="polite"></div>
+      <h2 data-i18n="latestScans">Ostatnie skany</h2><div id="scanRuns" class="list-stack"></div>
+    </section>
+
+    <section id="settings" class="view hidden">
+      <header class="page-heading"><div><p class="eyebrow" data-i18n="preferences">PREFERENCJE</p><h1 data-i18n="settingsTitle">Ustawienia</h1>
+        <p class="intro" data-i18n="settingsIntro">Parametry planowania i sposób prezentacji danych.</p></div></header>
+      <div id="settingsLoadError"></div>
+      <form id="settingsForm" class="settings-form form-panel">
+        <label for="portfolioValue" data-i18n="portfolioValue">Wartość portfela<input id="portfolioValue" name="portfolio_value" type="number" min="1" step="0.01" required></label>
+        <label for="riskPercent" data-i18n="riskPerPosition">Ryzyko na pozycję (%)<input id="riskPercent" name="risk_percent" type="number" min="0.1" max="10" step="0.1" required></label>
+        <label for="scanInterval" data-i18n="scanSeconds">Skanowanie (sekundy)<input id="scanInterval" name="scan_interval_seconds" type="number" min="60" required></label>
+        <label for="displayCurrency" data-i18n="displayCurrency">Waluta prezentacji<select id="displayCurrency" name="display_currency"></select></label>
+        <label for="language" data-i18n="languageLabel">Język<select id="language" name="language"><option value="pl">Polski</option><option value="en">English</option></select></label>
+        <p id="fxStatus" class="inline-notice" role="status"></p>
+        <span id="settingsMessage" class="form-message" role="status"></span>
+        <button class="button button-primary" type="submit" data-i18n="saveSettings">Zapisz ustawienia</button>
+      </form>
+    </section>
   </main>
-  <dialog id="signalDialog" class="signal-dialog"><button class="close">×</button><div id="signalDetails"></div></dialog>
-  <dialog id="loginDialog"><h2 data-i18n="sign_in">Zaloguj się</h2><form id="loginForm"><label><span data-i18n="username">Nazwa użytkownika</span>
-    <input name="username" autocomplete="username" required></label><label><span data-i18n="password">Hasło</span>
-    <input name="password" type="password" autocomplete="current-password" required></label>
-    <button class="primary" data-i18n="sign_in">Zaloguj się</button><p id="loginError" class="warning hidden" data-i18n="invalid_credentials">Nieprawidłowe dane logowania</p></form></dialog>
-  <div id="offline" class="offline hidden" data-i18n="server_offline">SERWER OFFLINE — wyświetlane dane mogą być nieaktualne</div>
+
+  <dialog id="signalDialog" class="signal-dialog" aria-labelledby="signalDialogTitle">
+    <button class="dialog-close" type="button" aria-label="Zamknij szczegóły">×</button>
+    <div id="signalDetails"></div>
+  </dialog>
+  <dialog id="positionDialog" aria-labelledby="positionDialogTitle">
+    <form id="positionForm" class="dialog-form">
+      <button class="dialog-close" type="button" data-close-dialog aria-label="Zamknij">×</button>
+      <h2 id="positionDialogTitle" data-i18n="manualPositionTitle">Dodaj pozycję ręczną</h2>
+      <p class="intro" data-i18n="manualPositionHelp">Zapisz pozycję, którą otworzyłeś u swojego brokera. TradingHelper nie składa zleceń.</p>
+      <label for="positionSymbol" data-i18n="symbol">Symbol<input id="positionSymbol" name="symbol" maxlength="20" required></label>
+      <label for="positionBroker" data-i18n="brokerSource">Broker / źródło<input id="positionBroker" name="broker" value="MANUAL" maxlength="40" required></label>
+      <label for="positionEntry" data-i18n="entryPrice">Cena wejścia<input id="positionEntry" name="entry_price" type="number" min="0.000001" step="any" required></label>
+      <label for="positionQuantity" data-i18n="quantity">Ilość<input id="positionQuantity" name="quantity" type="number" min="0.000001" step="any" required></label>
+      <label for="positionCurrency" data-i18n="currency">Waluta<input id="positionCurrency" name="currency" value="USD" minlength="3" maxlength="3" required></label>
+      <label for="positionDate" data-i18n="date">Data wejścia<input id="positionDate" name="entry_date" type="date" required></label>
+      <label for="positionStop" data-i18n="stopOptional">Stop loss (opcjonalnie)<input id="positionStop" name="stop_price" type="number" min="0.000001" step="any"></label>
+      <label for="positionTarget" data-i18n="targetOptional">Take profit (opcjonalnie)<input id="positionTarget" name="target_price" type="number" min="0.000001" step="any"></label>
+      <label for="positionNotes" data-i18n="notes">Notatka<textarea id="positionNotes" name="notes" rows="2"></textarea></label>
+      <span id="positionMessage" class="form-message" role="alert"></span>
+      <button class="button button-primary" type="submit">Zapisz pozycję</button>
+    </form>
+  </dialog>
+  <dialog id="confirmDialog" aria-labelledby="confirmTitle">
+    <form method="dialog" class="confirm-form"><h2 id="confirmTitle" data-i18n="confirmPaperTitle">Rozpocząć nowe konto PAPER?</h2>
+      <p id="confirmMessage" data-i18n="confirmPaperMessage">Historia księgi PAPER zostanie wyczyszczona. Możesz zmienić kapitał tylko wtedy, gdy wszystkie pozycje PAPER są zamknięte.</p>
+      <div class="dialog-actions"><button class="button button-secondary" type="submit" value="cancel" data-i18n="cancel">Anuluj</button><button id="confirmAction" class="button button-danger" type="submit" value="confirm" data-i18n="confirmReset">Potwierdź reset</button></div>
+    </form>
+  </dialog>
+  <dialog id="loginDialog" aria-labelledby="loginTitle">
+    <form id="loginForm" class="dialog-form"><h2 id="loginTitle" data-i18n="login">Zaloguj się</h2>
+      <label for="loginUsername" data-i18n="username">Nazwa użytkownika<input id="loginUsername" name="username" autocomplete="username" required></label>
+      <label for="loginPassword" data-i18n="password">Hasło<input id="loginPassword" name="password" type="password" autocomplete="current-password" required></label>
+      <span id="loginError" class="form-message" role="alert"></span><button class="button button-primary" type="submit" data-i18n="login">Zaloguj się</button>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="offline" class="offline hidden" role="alert" data-i18n="offlineMessage">Brak połączenia z serwerem. Widoczne dane mogą być nieaktualne.</div>
   <script src="https://unpkg.com/lightweight-charts@5.2.0/dist/lightweight-charts.standalone.production.js"
     integrity="sha384-q1KYLSKHgBnW5tWYGGR8+6YV4/iPy31dILoF2I1OD7XiVUvHEp/TaxIQVmB0j3R2"
     crossorigin="anonymous"></script>

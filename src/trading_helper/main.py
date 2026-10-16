@@ -65,8 +65,7 @@ def main() -> None:
         sub.add_parser(name)
     soak_parser = sub.add_parser("paper-soak")
     soak_parser.add_argument("--cycles", type=int, default=1000)
-    password_parser = sub.add_parser("hash-password")
-    password_parser.add_argument("password", nargs="?")
+    sub.add_parser("hash-password")
     args = parser.parse_args()
     settings = load_settings()
     configure_logging(os.getenv("LOG_LEVEL", "INFO"))
@@ -78,12 +77,10 @@ def main() -> None:
         print(f"Database initialized: {Path(settings.database_path)}")
         return
     if args.command == "hash-password":
-        password = args.password
-        if password is None:
-            password = getpass.getpass("Password: ")
-            confirmation = getpass.getpass("Repeat password: ")
-            if password != confirmation:
-                raise SystemExit("Passwords do not match")
+        password = getpass.getpass("Password: ")
+        confirmation = getpass.getpass("Repeat password: ")
+        if password != confirmation:
+            raise SystemExit("Passwords do not match")
         print(hash_password(password))
         return
     if args.command == "backup":

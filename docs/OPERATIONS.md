@@ -34,5 +34,12 @@ po 14 różnych, kolejnych dniach bez obserwacji UNHEALTHY. Test przyspieszony n
 rzeczywistego upływu czasu.
 
 Backup SQLite wykonuje `python -m trading_helper.main backup`; timer robi go codziennie
-i stosuje retencję z YAML. Przy odtwarzaniu zatrzymaj usługę, zachowaj uszkodzoną bazę,
+i stosuje retencję z YAML. Pliki backupów mają tryb `0600`, katalog `0700`; program
+sprawdza integralność nowej kopii przed usunięciem starych. Retencja `0` wyłącza
+usuwanie starych kopii, a wartość ujemna jest błędem. Przy odtwarzaniu zatrzymaj usługę,
+zachowaj uszkodzoną bazę,
 skopiuj backup do ścieżki `TRADING_HELPER_DB` i ponownie uruchom usługę.
+
+Migawki portfela i dziennik zdarzeń są zachowywane bez automatycznego kasowania. Przy
+długiej pracy monitoruj rozmiar bazy i dysku oraz uwzględnij te dane w planie szyfrowanych,
+zewnętrznych kopii. Backup na tym samym hoście nie chroni przed awarią ani utratą hosta.
