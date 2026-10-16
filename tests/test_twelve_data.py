@@ -2,6 +2,7 @@
 import pytest
 
 from trading_helper.market_data.provider import ProviderError, ProviderRateLimited
+from trading_helper.market_data.resilience import with_retry
 from trading_helper.market_data.twelve_data import TwelveDataProvider
 
 
@@ -78,6 +79,24 @@ def test_twelve_data_explicit_delay_and_rate_limit():
     )
     with pytest.raises(ProviderRateLimited):
         provider.get_quote("AAPL")
+
+
+def test_permanent_http_error_is_not_retried():
+    session = Session([Response({}, status_code=400), Response({"price": "42"})])
+    provider = TwelveDataProvider("secret", session=session, requests_per_minute=1_000_000)
+
+    with pytest.raises(ProviderError):
+        with_retry(lambda: provider.get_quote("AAPL"))
+    assert len(session.calls) == 1
+
+
+def test_temporary_server_error_is_retried():
+    session = Session([Response({}, status_code=503), Response({"price": "42"})])
+    provider = TwelveDataProvider("secret", session=session, requests_per_minute=1_000_000)
+
+    quote = with_retry(lambda: provider.get_quote("AAPL"), attempts=2)
+    assert quote.price == 42
+    assert len(session.calls) == 2
 
 
 def test_twelve_data_requires_key():

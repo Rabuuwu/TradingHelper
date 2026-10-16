@@ -4,7 +4,7 @@ from trading_helper.config import Settings, StrategySettings
 from trading_helper.database import Repository
 from trading_helper.market_data.sample import SampleMarketDataProvider
 from trading_helper.paper import PaperBuy, PaperPortfolioService
-from trading_helper.service import TradingHelperService
+from trading_helper.service import ScanAlreadyRunning, TradingHelperService
 
 
 def make_settings(database_path: str) -> Settings:
@@ -35,6 +35,12 @@ def test_scan_pipeline_persists_market_data_and_signals(tmp_path) -> None:
         {"costs": {"profiles": {"custom": {}}}},
     )
     summary = service.scan_once()
+    assert service._scan_lock.acquire(blocking=False)
+    try:
+        with pytest.raises(ScanAlreadyRunning):
+            service.scan_once()
+    finally:
+        service._scan_lock.release()
     repository = Repository(settings.database_path)
     assert summary["succeeded"] == 1
     assert repository.rows("SELECT symbol FROM signals") == [{"symbol": "AAPL"}]

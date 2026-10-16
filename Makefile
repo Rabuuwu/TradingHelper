@@ -1,4 +1,4 @@
-.PHONY: install dev test lint format run worker scan self-check init-db
+.PHONY: install dev test lint format run worker scan self-check init-db app-macos
 
 install:
 	python -m pip install -e .
@@ -30,3 +30,6 @@ self-check:
 
 init-db:
 	python -m trading_helper.main init-db
+
+app-macos:
+	bash scripts/build_macos_app.sh

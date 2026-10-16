@@ -140,15 +140,19 @@ class StrategySettings:
 
 
 def load_settings() -> Settings:
-    load_dotenv()
+    load_dotenv(os.getenv("APP_ENV_FILE") or None)
     delay_value = os.getenv("MARKET_DATA_DELAY_MINUTES", "").strip()
+    provider_api_key = os.getenv("MARKET_DATA_API_KEY", "")
+    provider = os.getenv("MARKET_DATA_PROVIDER", "").strip().lower()
+    if not provider:
+        provider = "twelve_data" if provider_api_key.strip() else "sample"
     return Settings(
         app_host=os.getenv("APP_HOST", "127.0.0.1"),
         app_port=int(os.getenv("APP_PORT", "8787")),
         database_path=os.getenv("TRADING_HELPER_DB", "data/trading_helper.db"),
         settings_file=os.getenv("SETTINGS_FILE", "config/settings.yaml"),
-        market_data_provider=os.getenv("MARKET_DATA_PROVIDER", "sample").lower(),
-        provider_api_key=os.getenv("MARKET_DATA_API_KEY", ""),
+        market_data_provider=provider,
+        provider_api_key=provider_api_key,
         ntfy_enabled=_as_bool(os.getenv("NTFY_ENABLED", "false"), False),
         ntfy_server=os.getenv("NTFY_SERVER", "https://ntfy.sh").rstrip("/"),
         ntfy_topic=os.getenv("NTFY_TOPIC", ""),

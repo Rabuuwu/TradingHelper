@@ -1,6 +1,6 @@
 # TradingHelper
 
-Broker-independent Trading Assistant działający 24/7 na jednym serwerze Linux.
+Broker-independent Trading Assistant z backendem działającym 24/7 na jednym serwerze Linux.
 Analizuje dane rynkowe, tworzy wyjaśnialne sygnały, monitoruje ręczne i symulowane
 pozycje oraz wysyła alerty. Broker (XTB, IBKR, Trading212 lub inny) służy wyłącznie
 do ręcznego wykonania decyzji użytkownika.
@@ -22,6 +22,8 @@ do ręcznego wykonania decyzji użytkownika.
 - atomowy ledger PAPER, trwałe sesje, ochrona brute-force i retencja historii sygnałów,
 - SQLite, outbox alertów ntfy z retry, event log, scheduler, watchdog-ready status i backup,
 - FastAPI, SSE live updates, responsywny dashboard instalowalny jako PWA,
+- aplikacja desktopowa na macOS i Windows; lokalny odczyt OCR ekranu jest dostępny
+  tylko na macOS ([uruchomienie](docs/DESKTOP_COMPANION.md)),
 - opcjonalne single-user auth bcrypt + HttpOnly cookie,
 - systemd i bezpieczny zdalny dostęp przez Tailscale.
 
@@ -49,6 +51,49 @@ python -m trading_helper.main run
 
 Dashboard: `http://127.0.0.1:8787`. Polecenie `run` uruchamia centralny backend,
 scheduler i web UI. Zamknięcie przeglądarki nie zatrzymuje analiz ani ntfy.
+
+## Aplikacja desktopowa
+
+Zbuduj aplikację raz z katalogu projektu:
+
+```bash
+bash scripts/build_macos_app.sh
+```
+
+Po zbudowaniu otwórz `dist/macos/TradingHelper.app` z Findera. Dashboard działa w
+osadzonym oknie aplikacji macOS; lokalne API i scheduler uruchamiają się razem z nim,
+więc nie trzeba osobno startować serwera ani otwierać przeglądarki. Panel odczytu
+TradingView jest wbudowany w okno. Dane i konfiguracja są przechowywane w
+`~/Library/Application Support/TradingHelper` i zachowują się po aktualizacji aplikacji.
+Logi aplikacji zapisują się obok nich w `logs/desktop-app.log`. Przy pierwszym
+uruchomieniu macOS może poprosić o dostęp do nagrywania ekranu.
+
+Paczka macOS jest budowana lokalnie i nie jest podpisana do dystrybucji. Do kompilacji
+wymagane są `.venv`, macOS oraz narzędzia Xcode Command Line Tools.
+
+Na Windows zbuduj aplikację w PowerShell:
+
+```powershell
+./scripts/build_windows_app.ps1
+```
+
+Skrypt tworzy folder `dist/windows/TradingHelper` oraz archiwum
+`dist/windows/TradingHelper-windows-x64.zip`. GitHub Actions buduje to samo archiwum
+na runnerze Windows po pushu do `main` i udostępnia je jako artifact workflow. Rozpakuj
+całe archiwum i uruchom `TradingHelper.exe`; wymagany jest runtime Microsoft Edge
+WebView2. Konfiguracja, baza i logi są przechowywane w `%APPDATA%\TradingHelper`.
+Lokalny OCR ekranu TradingView jest dostępny wyłącznie w aplikacji macOS.
+
+Szybki start używa deterministycznego dostawcy `sample`, a jego status w UI jest
+oznaczony jako dane demonstracyjne. Żeby przełączyć się na prawdziwe notowania z
+bezpłatnego planu Twelve Data, utwórz darmowy klucz i uruchom:
+
+```bash
+.venv/bin/python scripts/configure_market_data.py
+```
+
+Skrypt ukrywa wpisywany klucz, sprawdza połączenie na symbolu AAPL i zapisuje go do
+`.env` z uprawnieniami tylko dla bieżącego użytkownika. Zachowuje pozostałą konfigurację.
 
 ## Najważniejsze endpointy
 
@@ -86,6 +131,7 @@ Szczegóły: [docs/OPERATIONS.md](docs/OPERATIONS.md) i
 - [Cost model](docs/COST_MODEL.md)
 - [Roadmapa](docs/ROADMAP.md)
 - [Linux/operacje](docs/SETUP_LINUX.md), [testy](docs/TESTING.md)
+- [Audyt techniczny i poprawki (2026-10-15)](docs/AUDIT_2026-10-15.md)
 
 ## Disclaimer
 

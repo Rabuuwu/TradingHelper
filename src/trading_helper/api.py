@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -19,11 +21,12 @@ from trading_helper.journal import TradeJournal
 from trading_helper.paper import PaperBuy, PaperPortfolioService
 from trading_helper.portfolio import ManualPortfolioService, PositionInput
 from trading_helper.scanner.indicators import ema
-from trading_helper.service import TradingHelperService
+from trading_helper.service import ScanAlreadyRunning, TradingHelperService
 from trading_helper.signals import SignalQueryService
 from trading_helper.soak import SoakMonitor
 
 app = FastAPI(title="TradingHelper", version=__version__)
+logger = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).parent / "web"
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -46,8 +49,9 @@ def service() -> TradingHelperService:
     return _service
 
 
-def repository() -> Repository:
-    return Repository(load_settings().database_path)
+@lru_cache(maxsize=8)
+def repository(database_path: str | None = None) -> Repository:
+    return Repository(database_path or load_settings().database_path)
 
 
 def require_auth(session: Annotated[str | None, Cookie(alias="th_session")] = None) -> None:
@@ -236,9 +240,10 @@ def ready(response: Response) -> dict[str, Any]:
     repo = repository()
     try:
         repo.rows("SELECT 1")
-    except Exception as exc:
+    except Exception:
+        logger.exception("Readiness database check failed")
         response.status_code = 503
-        return {"status": "unhealthy", "database": str(exc)}
+        return {"status": "unhealthy", "database": "unavailable"}
     watchdog = repo.rows("SELECT value FROM system_state WHERE key='watchdog'")
     watchdog_state = watchdog[0]["value"] if watchdog else "STARTING"
     degraded = watchdog_state == "DEGRADED"
@@ -291,11 +296,11 @@ def status() -> dict[str, Any]:
     quote_state = repo.rows(
         "SELECT is_delayed,delay_minutes,timestamp FROM quotes ORDER BY fetched_at DESC LIMIT 1"
     )
-    data_status = "NO_DATA"
-    if quote_state:
+    data_status = "SIMULATION" if service().provider.name == "sample" else "NO_DATA"
+    if quote_state and service().provider.name != "sample":
         data_status = "DELAYED" if quote_state[0]["is_delayed"] else "CURRENT"
         timestamp = datetime.fromisoformat(quote_state[0]["timestamp"])
-        if (datetime.now(UTC) - timestamp).total_seconds() > 3600:
+        if (datetime.now(UTC) - timestamp).total_seconds() > 900:
             data_status = "STALE"
     return {
         "version": __version__,
@@ -646,7 +651,10 @@ def scanner_status() -> list[dict[str, Any]]:
 
 @app.post("/scanner/run", dependencies=[Depends(require_auth)])
 def scanner_run() -> dict[str, int]:
-    return service().scan_once()
+    try:
+        return service().scan_once()
+    except ScanAlreadyRunning as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.get("/settings/public", dependencies=[Depends(require_auth)])
@@ -706,12 +714,12 @@ def update_public_settings(data: PublicSettingsUpdate) -> dict[str, str]:
 
 
 @app.get("/events", dependencies=[Depends(require_auth)])
-def events(limit: int = 100) -> list[dict[str, Any]]:
+def events(limit: int = Query(default=100, ge=1, le=500)) -> list[dict[str, Any]]:
     return repository().rows("SELECT * FROM app_events ORDER BY id DESC LIMIT ?", (limit,))
 
 
 @app.get("/alerts", dependencies=[Depends(require_auth)])
-def alerts(limit: int = 100) -> list[dict[str, Any]]:
+def alerts(limit: int = Query(default=100, ge=1, le=500)) -> list[dict[str, Any]]:
     return repository().rows("SELECT * FROM alerts ORDER BY id DESC LIMIT ?", (limit,))
 
 

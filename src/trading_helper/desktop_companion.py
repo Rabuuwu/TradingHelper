@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
 import urllib.error
 import urllib.request
 import webbrowser
 from dataclasses import dataclass
+from datetime import datetime
 from http.cookiejar import CookieJar
 from typing import Any
 
@@ -60,17 +62,45 @@ def run_companion() -> None:  # pragma: no cover - native UI is verified manuall
     import tkinter as tk
     from tkinter import ttk
 
+    from trading_helper.screen_ocr import (
+        list_tradingview_windows,
+        parse_screen_reading,
+        read_browser_window,
+        select_tradingview_window,
+    )
+
     server_url = os.getenv("TRADING_HELPER_SERVER_URL", "http://127.0.0.1:8787")
     client = TradingHelperApiClient(server_url)
     root = tk.Tk()
     root.title("TradingHelper Companion")
-    root.geometry("340x460")
+    root.geometry("400x700")
     root.minsize(280, 80)
     status_var = tk.StringVar(value="● CONNECTING")
+    screen_symbol_var = tk.StringVar(value="Symbol: —")
+    screen_price_var = tk.StringVar(value="Cena z ekranu: —")
+    screen_info_var = tk.StringVar(value="Automatyczny odczyt ekranu uruchamia się…")
+    screen_updated_var = tk.StringVar(value="")
+    screen_in_flight = False
+    screen_timer: str | None = None
     top_var = tk.BooleanVar(value=True)
     login_window: tk.Toplevel | None = None
     root.attributes("-topmost", True)
     ttk.Label(root, textvariable=status_var, font=("sans", 11, "bold")).pack(pady=10)
+    screen_panel = ttk.LabelFrame(root, text="Odczyt ekranu · automatyczny", padding=8)
+    screen_panel.pack(fill="x", padx=10, pady=(0, 6))
+    ttk.Label(screen_panel, text="Szukam widocznego okna TradingView.").pack(
+        anchor="w", pady=(0, 5)
+    )
+    ttk.Label(screen_panel, textvariable=screen_symbol_var, font=("sans", 10, "bold")).pack(
+        anchor="w", pady=(6, 0)
+    )
+    ttk.Label(screen_panel, textvariable=screen_price_var, font=("sans", 16, "bold")).pack(
+        anchor="w"
+    )
+    ttk.Label(screen_panel, textvariable=screen_info_var, wraplength=360).pack(anchor="w")
+    ttk.Label(screen_panel, textvariable=screen_updated_var, foreground="#666666").pack(
+        anchor="w"
+    )
     content = ttk.Frame(root, padding=10)
     content.pack(fill="both", expand=True)
 
@@ -78,11 +108,13 @@ def run_companion() -> None:  # pragma: no cover - native UI is verified manuall
         root.attributes("-topmost", top_var.get())
 
     def toggle_mini() -> None:
-        if root.geometry().split("+")[0].startswith("340x"):
+        if root.geometry().split("+")[0].startswith("400x"):
             root.geometry("300x90")
             content.pack_forget()
+            screen_panel.pack_forget()
         else:
-            root.geometry("340x460")
+            root.geometry("400x700")
+            screen_panel.pack(fill="x", padx=10, pady=(0, 6), before=content)
             content.pack(fill="both", expand=True)
 
     controls = ttk.Frame(root)
@@ -170,6 +202,69 @@ def run_companion() -> None:  # pragma: no cover - native UI is verified manuall
             ttk.Label(content, text="Zaloguj się do centralnego serwera.").pack(pady=12)
             ttk.Button(content, text="Zaloguj", command=show_login).pack()
 
+    def set_screen_result(
+        window: dict[str, Any] | None,
+        result: dict[str, Any] | None,
+        error: str | None,
+    ) -> None:
+        nonlocal screen_in_flight, screen_timer
+        screen_in_flight = False
+        if error:
+            screen_symbol_var.set("Symbol: —")
+            screen_price_var.set("Cena z ekranu: —")
+            screen_info_var.set(error)
+            screen_updated_var.set("")
+            delay = 10_000
+        elif result is None or window is None:
+            screen_symbol_var.set("Symbol: —")
+            screen_price_var.set("Cena z ekranu: —")
+            screen_info_var.set(
+                "Czekam na widoczne TradingView. Jeśli jest otwarte, sprawdź dostęp do ekranu."
+            )
+            screen_updated_var.set("")
+            delay = 5_000
+        else:
+            reading = parse_screen_reading(window.get("title", ""), result.get("observations", []))
+            screen_symbol_var.set(f"Symbol: {reading.symbol or 'nie rozpoznano'}")
+            if reading.price is None or (
+                reading.confidence is not None and reading.confidence < 0.5
+            ):
+                screen_price_var.set("Cena z ekranu: nie rozpoznano")
+                screen_info_var.set(
+                    "Wynik OCR może być niepełny. Ustaw wykres tak, by cena była widoczna."
+                )
+            else:
+                confidence = (
+                    f" · pewność OCR {reading.confidence:.0%}"
+                    if reading.confidence is not None
+                    else ""
+                )
+                screen_price_var.set(f"~ {reading.price}{confidence}")
+                screen_info_var.set(f"Automatycznie czytam: {window.get('title', 'TradingView')}")
+            screen_updated_var.set(f"Odczyt: {datetime.now().strftime('%H:%M:%S')}")
+            delay = 2_500
+        screen_timer = root.after(delay, monitor_screen_step)
+
+    def monitor_screen_step() -> None:
+        nonlocal screen_in_flight, screen_timer
+        screen_timer = None
+        if screen_in_flight:
+            return
+        screen_in_flight = True
+
+        def worker() -> None:
+            try:
+                window = select_tradingview_window(list_tradingview_windows())
+                result = read_browser_window(int(window["id"])) if window else None
+                error = None
+            except (RuntimeError, OSError, TimeoutError) as exc:
+                window = None
+                result = None
+                error = str(exc)
+            root.after(0, set_screen_result, window, result, error)
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def poll() -> None:
         state = client.snapshot()
         root.after(0, render, state)
@@ -179,6 +274,10 @@ def run_companion() -> None:  # pragma: no cover - native UI is verified manuall
     def start_poll() -> None:
         threading.Thread(target=poll, daemon=True).start()
 
+    if sys.platform == "darwin":
+        monitor_screen_step()
+    else:
+        screen_info_var.set("Automatyczny OCR ekranu wymaga macOS.")
     start_poll()
     root.mainloop()
 

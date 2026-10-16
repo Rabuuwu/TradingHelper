@@ -68,12 +68,17 @@ class TwelveDataProvider(MarketDataProvider):
             )
         except requests.Timeout as exc:
             raise ProviderTimeout("Twelve Data request timed out") from exc
+        except requests.ConnectionError as exc:
+            raise ProviderTimeout("Twelve Data connection temporarily unavailable") from exc
         except requests.RequestException as exc:
             raise ProviderError(f"Twelve Data connection error: {exc}") from exc
         if response.status_code == 429:
             raise ProviderRateLimited("Twelve Data rate limit reached")
+        if response.status_code in {408, 425} or response.status_code >= 500:
+            raise ProviderTimeout(f"Twelve Data temporarily unavailable ({response.status_code})")
+        if response.status_code >= 400:
+            raise ProviderError(f"Twelve Data rejected the request ({response.status_code})")
         try:
-            response.raise_for_status()
             payload = response.json()
         except (requests.RequestException, ValueError) as exc:
             raise ProviderError("Invalid Twelve Data response") from exc

@@ -16,7 +16,9 @@ class CachedMarketData:
     ) -> None:
         self.provider = provider
         self.repository = repository
-        self.quote_ttl = timedelta(seconds=max(ttl_seconds, 720))
+        # Quotes drive position monitoring, so keep this cache fresher than the
+        # scanner interval while still preventing rapid duplicate provider calls.
+        self.quote_ttl = timedelta(seconds=min(max(ttl_seconds, 60), 300))
         self.timeframe_ttl = {
             "15m": timedelta(minutes=12),
             "1h": timedelta(minutes=55),
@@ -48,7 +50,9 @@ class CachedMarketData:
         cached = self.repository.cached_candles(
             symbol, timeframe, limit, self.provider.name
         )
-        if len(cached) >= limit and not force:
+        # Providers may legitimately return fewer candles for a new/short-lived
+        # instrument. A non-empty partial response is still cacheable until TTL.
+        if cached and not force:
             fetched = datetime.fromisoformat(cached[-1]["fetched_at"])
             ttl = self.timeframe_ttl.get(timeframe, timedelta(minutes=15))
             if datetime.now(UTC) - fetched <= ttl:

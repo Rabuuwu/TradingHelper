@@ -6,7 +6,6 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from trading_helper.market_data.provider import (
-    ProviderError,
     ProviderRateLimited,
     ProviderTimeout,
 )
@@ -41,10 +40,8 @@ def with_retry(
             return operation()
         except ProviderRateLimited:
             raise
-        except (ProviderError, TimeoutError) as exc:
+        except (ProviderTimeout, TimeoutError) as exc:
             last_error = exc
             if attempt + 1 < attempts:
                 time.sleep(base_delay_seconds * (2**attempt))
-    raise ProviderTimeout(
-        f"Provider failed after {attempts} attempts: {last_error}"
-    ) from last_error
+    raise ProviderTimeout(f"Provider failed after {attempts} attempts") from last_error
